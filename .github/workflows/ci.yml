@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Format, lint, typecheck, unit tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.9 }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  database:
+    name: Migrations, drift, seed, integration + e2e tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: dcp_owner
+          POSTGRES_PASSWORD: ci-owner-password-only
+          POSTGRES_DB: dcp_pulse
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U dcp_owner -d dcp_pulse"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      # Throwaway credentials for the ephemeral CI database only.
+      MIGRATION_DATABASE_URL: postgresql://dcp_owner:ci-owner-password-only@localhost:5432/dcp_pulse?schema=public
+      DATABASE_URL: postgresql://dcp_app:ci-app-password-only@localhost:5432/dcp_pulse?schema=public
+      APP_DB_PASSWORD: ci-app-password-only
+      SEED_DEMO_PASSWORD: ci-seed-password-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.9 }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:shared
+      - name: Generate Prisma client
+        run: pnpm --filter @dcp/api exec prisma generate
+      - run: pnpm db:bootstrap-roles
+      - run: pnpm db:migrate
+      - run: pnpm db:drift-check
+      - run: pnpm db:seed
+      - name: Seed is idempotent
+        run: pnpm db:seed
+      - run: pnpm test:integration
+
+  docker:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f infra/docker/api.Dockerfile -t dcp-pulse-api:ci .
+      - run: docker build -f infra/docker/web.Dockerfile -t dcp-pulse-web:ci .
