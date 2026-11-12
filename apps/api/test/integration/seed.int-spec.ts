@@ -61,20 +61,24 @@ describe('synthetic ASSAM-DEMO seed', () => {
         [tenantId],
       ),
     ).toBe(1);
-    expect(await count(`SELECT count(*) n FROM users WHERE tenant_id = $1`, [tenantId])).toBe(8);
+    expect(
+      await count(`SELECT count(*) n FROM users WHERE tenant_id = $1 AND created_by IS NULL`, [
+        tenantId,
+      ]),
+    ).toBe(8);
   });
 
-  it('stores only bcrypt hashes for demo users with example.test emails', async () => {
+  it('stores only Argon2id hashes for demo users with example.test emails', async () => {
     const rows = (
       await db.query(
-        `SELECT u.email, c.password_hash FROM users u JOIN user_credentials c ON c.user_id = u.id WHERE u.tenant_id = $1`,
+        `SELECT u.email, c.password_hash FROM users u JOIN user_credentials c ON c.user_id = u.id WHERE u.tenant_id = $1 AND u.created_by IS NULL`,
         [tenantId],
       )
     ).rows;
     expect(rows).toHaveLength(8);
     for (const r of rows) {
       expect(r.email).toMatch(/@example\.test$/);
-      expect(r.password_hash).toMatch(/^\$2[aby]\$12\$/);
+      expect(r.password_hash).toMatch(/^\$argon2id\$v=19\$/);
     }
   });
 

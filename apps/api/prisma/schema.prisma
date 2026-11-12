@@ -41,8 +41,17 @@ enum UserStatus {
   ACTIVE
   DISABLED
   LOCKED
+  INVITED
+  SUSPENDED
 
   @@map("user_status")
+}
+
+enum TokenPurpose {
+  PASSWORD_RESET
+  INVITE
+
+  @@map("token_purpose")
 }
 
 enum ScopeType {
@@ -239,6 +248,9 @@ model Tenant {
   auditEvents            AuditEvent[]
   importBatches          ImportBatch[]
   externalRecordMappings ExternalRecordMapping[]
+  userSessions           UserSession[]
+  passwordResetTokens    PasswordResetToken[]
+  authenticationEvents   AuthenticationEvent[]
 
   @@map("tenants")
 }
@@ -355,19 +367,22 @@ model User {
   createdBy     String?    @map("created_by") @db.Uuid
   version       Int        @default(1)
 
-  tenant                  Tenant               @relation(fields: [tenantId], references: [id])
+  tenant                  Tenant                @relation(fields: [tenantId], references: [id])
   credential              UserCredential?
   roleScopes              UserRoleScope[]
-  approvedBudgetVersions  BudgetVersion[]      @relation("BudgetVersionApprovedBy")
-  submittedBudgetRequests BudgetRequest[]      @relation("BudgetRequestSubmittedBy")
-  approvedAllocations     BudgetAllocation[]   @relation("AllocationApprovedBy")
-  submittedExpenditure    ExpenditureRecord[]  @relation("ExpenditureSubmittedBy")
-  verifiedExpenditure     ExpenditureRecord[]  @relation("ExpenditureVerifiedBy")
-  progressSubmissions     ProgressSubmission[] @relation("ProgressSubmittedBy")
-  uploadedEvidence        EvidenceFile[]       @relation("EvidenceUploadedBy")
+  approvedBudgetVersions  BudgetVersion[]       @relation("BudgetVersionApprovedBy")
+  submittedBudgetRequests BudgetRequest[]       @relation("BudgetRequestSubmittedBy")
+  approvedAllocations     BudgetAllocation[]    @relation("AllocationApprovedBy")
+  submittedExpenditure    ExpenditureRecord[]   @relation("ExpenditureSubmittedBy")
+  verifiedExpenditure     ExpenditureRecord[]   @relation("ExpenditureVerifiedBy")
+  progressSubmissions     ProgressSubmission[]  @relation("ProgressSubmittedBy")
+  uploadedEvidence        EvidenceFile[]        @relation("EvidenceUploadedBy")
   approvalDecisions       ApprovalDecision[]
-  assignedAlerts          Alert[]              @relation("AlertAssignee")
+  assignedAlerts          Alert[]               @relation("AlertAssignee")
   correctiveActions       CorrectiveAction[]
+  sessions                UserSession[]
+  passwordResetTokens     PasswordResetToken[]
+  authenticationEvents    AuthenticationEvent[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, email])
@@ -376,15 +391,18 @@ model User {
 
 /// Local credential store (bcrypt hash only). Kept apart from `users` so user reads never touch hashes.
 model UserCredential {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId     String   @map("tenant_id") @db.Uuid
-  userId       String   @unique @map("user_id") @db.Uuid
-  passwordHash String   @map("password_hash") @db.VarChar(200)
-  algorithm    String   @default("bcrypt") @db.VarChar(20)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdBy    String?  @map("created_by") @db.Uuid
-  version      Int      @default(1)
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  userId            String    @unique @map("user_id") @db.Uuid
+  passwordHash      String    @map("password_hash") @db.VarChar(200)
+  algorithm         String    @default("argon2id") @db.VarChar(20)
+  failedAttempts    Int       @default(0) @map("failed_attempts")
+  lockedUntil       DateTime? @map("locked_until") @db.Timestamptz(6)
+  passwordChangedAt DateTime? @map("password_changed_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy         String?   @map("created_by") @db.Uuid
+  version           Int       @default(1)
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   user   User   @relation(fields: [tenantId, userId], references: [tenantId, id])
@@ -1098,4 +1116,69 @@ model ExternalRecordMapping {
 
   @@unique([tenantId, sourceSystem, entityType, externalId])
   @@map("external_record_mappings")
+}
+
+/// Server-side session. Only SHA-256 hashes of the session and CSRF tokens are stored.
+model UserSession {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  tokenHash         String    @unique @map("token_hash") @db.Char(64)
+  csrfTokenHash     String    @map("csrf_token_hash") @db.Char(64)
+  idleExpiresAt     DateTime  @map("idle_expires_at") @db.Timestamptz(6)
+  absoluteExpiresAt DateTime  @map("absolute_expires_at") @db.Timestamptz(6)
+  lastSeenAt        DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedReason     String?   @map("revoked_reason") @db.VarChar(50)
+  ipAddress         String?   @map("ip_address") @db.VarChar(64)
+  userAgent         String?   @map("user_agent") @db.VarChar(300)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [tenantId, userId], references: [tenantId, id])
+
+  @@unique([tenantId, id])
+  @@index([tenantId, userId])
+  @@map("user_sessions")
+}
+
+/// Expiring, single-use token for password reset or invitation acceptance. Only the hash is stored.
+model PasswordResetToken {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String       @map("tenant_id") @db.Uuid
+  userId    String       @map("user_id") @db.Uuid
+  tokenHash String       @unique @map("token_hash") @db.Char(64)
+  purpose   TokenPurpose
+  expiresAt DateTime     @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime?    @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?      @map("created_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [tenantId, userId], references: [tenantId, id])
+
+  @@index([tenantId, userId])
+  @@map("password_reset_tokens")
+}
+
+/// Append-only security log of authentication activity (login, logout, reset, lockout).
+model AuthenticationEvent {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid
+  eventType   String   @map("event_type") @db.VarChar(50)
+  outcome     String   @db.VarChar(20)
+  ipAddress   String?  @map("ip_address") @db.VarChar(64)
+  userAgent   String?  @map("user_agent") @db.VarChar(300)
+  requestId   String?  @map("request_id") @db.VarChar(100)
+  detailsJson Json?    @map("details_json")
+  occurredAt  DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User?  @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([tenantId, occurredAt])
+  @@index([tenantId, userId])
+  @@map("authentication_events")
 }

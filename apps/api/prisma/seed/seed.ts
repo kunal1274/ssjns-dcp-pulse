@@ -3,11 +3,11 @@
  * the tenant already exists (use `pnpm db:reset` for a clean database).
  *
  * Runs as the database owner (MIGRATION_DATABASE_URL), inside one transaction.
- * Demo passwords come from SEED_DEMO_PASSWORD and are stored only as bcrypt hashes.
+ * Demo passwords come from SEED_DEMO_PASSWORD and are stored only as Argon2id hashes.
  */
 import { PERMISSIONS, ROLE_TEMPLATES, SYNTHETIC_DATA_DISCLAIMER } from '@dcp/shared';
 import { Prisma, PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import argon2 from 'argon2';
 import {
   AGENCIES,
   AGENCY_JURISDICTIONS,
@@ -124,7 +124,9 @@ async function seedTenant(tx: Tx, passwordHash: string): Promise<void> {
       data: { tenantId, email: u.email, name: u.name, credentialRef: 'local:user_credentials' },
     });
     userIds.set(u.email, user.id);
-    await tx.userCredential.create({ data: { tenantId, userId: user.id, passwordHash } });
+    await tx.userCredential.create({
+      data: { tenantId, userId: user.id, passwordHash, algorithm: 'argon2id' },
+    });
     for (const scope of u.scopes) {
       await tx.userRoleScope.create({
         data: {
@@ -513,7 +515,7 @@ async function main(): Promise<void> {
       console.info(`Tenant ${TENANT_CODE} already seeded; no changes made.`);
       return;
     }
-    const passwordHash = await bcrypt.hash(demoPassword(), 12);
+    const passwordHash = await argon2.hash(demoPassword(), { type: argon2.argon2id });
     await prisma.$transaction((tx) => seedTenant(tx, passwordHash), { timeout: 120_000 });
     console.info(
       `Seeded tenant ${TENANT_CODE}: ${SCHEMES.length} schemes, ${DEMO_USERS.length} users.`,
