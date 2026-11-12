@@ -57,6 +57,8 @@ jobs:
         with: { node-version-file: .nvmrc, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:shared
+      - name: Generate Prisma client
+        run: pnpm --filter @dcp/api exec prisma generate
       - run: pnpm db:bootstrap-roles
       - run: pnpm db:migrate
       - run: pnpm db:drift-check

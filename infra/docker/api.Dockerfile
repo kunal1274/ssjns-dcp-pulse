@@ -18,7 +18,6 @@ RUN pnpm --filter @dcp/shared build && pnpm --filter @dcp/api build
 FROM build AS runtime
 ENV NODE_ENV=production
 WORKDIR /repo/apps/api
-RUN chown -R node:node /repo/apps/api/node_modules/.prisma 2>/dev/null || true
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=5 \

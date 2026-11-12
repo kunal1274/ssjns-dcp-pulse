@@ -13,7 +13,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:drift-check": "tsx scripts/check-migration-drift.ts",
-    "db:seed": "prisma generate && tsx prisma/seed/seed.ts",
+    "db:seed": "tsx prisma/seed/seed.ts",
     "db:reset": "prisma migrate reset --force --skip-seed"
   },
   "dependencies": {
