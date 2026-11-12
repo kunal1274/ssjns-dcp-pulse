@@ -1,0 +1,85 @@
+# DCP Pulse local development stack (synthetic data only).
+# Copy .env.example to .env and set every password before `docker compose up`.
+name: dcp-pulse
+
+x-db-urls: &db-urls
+  DATABASE_URL: postgresql://dcp_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}@db:5432/dcp_pulse?schema=public
+  MIGRATION_DATABASE_URL: postgresql://dcp_owner:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/dcp_pulse?schema=public
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: dcp_owner
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: dcp_pulse
+    ports: ['127.0.0.1:${DB_PORT:-5432}:5432']
+    volumes: [db-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U dcp_owner -d dcp_pulse']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # One-shot: create the runtime role, apply migrations, load the synthetic seed (idempotent).
+  migrate:
+    build: { context: ., dockerfile: infra/docker/api.Dockerfile }
+    environment:
+      <<: *db-urls
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+      SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:?set SEED_DEMO_PASSWORD in .env}
+    command: ['sh', '-c', 'pnpm db:bootstrap-roles && pnpm db:migrate && pnpm db:seed']
+    healthcheck: { disable: true }
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    build: { context: ., dockerfile: infra/docker/api.Dockerfile }
+    environment:
+      DATABASE_URL: postgresql://dcp_app:${APP_DB_PASSWORD}@db:5432/dcp_pulse?schema=public
+      API_PORT: 3000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+    ports: ['127.0.0.1:${API_PORT:-3000}:3000']
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  web:
+    build: { context: ., dockerfile: infra/docker/web.Dockerfile }
+    ports: ['127.0.0.1:${WEB_PORT:-8080}:8080']
+    depends_on:
+      api: { condition: service_healthy }
+
+  # Provisioned for later stages (queues/cache, evidence storage); not used by F01–F03 code.
+  redis:
+    image: redis:7.4-alpine
+    command: ['redis-server', '--requirepass', '${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}']
+    ports: ['127.0.0.1:${REDIS_PORT:-6379}:6379']
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping | grep PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+  # Opt-in (`--profile storage`): the official MinIO images were not pullable from the
+  # build environment. Override MINIO_IMAGE with an S3-compatible image you can access.
+  minio:
+    profiles: ['storage']
+    image: ${MINIO_IMAGE:-minio/minio:RELEASE.2025-04-22T22-12-26Z}
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-dcp-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+    ports: ['127.0.0.1:${MINIO_PORT:-9000}:9000', '127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001']
+    volumes: [minio-data:/data]
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  db-data:
+  minio-data:
