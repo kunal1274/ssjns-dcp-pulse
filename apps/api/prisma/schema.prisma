@@ -417,6 +417,7 @@ model Role {
   code             String       @db.VarChar(50)
   name             String       @db.VarChar(100)
   isSystemTemplate Boolean      @default(false) @map("is_system_template")
+  description      String?      @db.VarChar(500)
   status           RecordStatus @default(ACTIVE)
   createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -468,19 +469,23 @@ model RolePermission {
 }
 
 model UserRoleScope {
-  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId  String    @map("tenant_id") @db.Uuid
-  userId    String    @map("user_id") @db.Uuid
-  roleId    String    @map("role_id") @db.Uuid
-  scopeType ScopeType @map("scope_type")
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
+  roleId             String    @map("role_id") @db.Uuid
+  scopeType          ScopeType @map("scope_type")
   /// Id of the tenant, jurisdiction, agency or scheme the role applies to.
-  scopeId   String    @map("scope_id") @db.Uuid
-  validFrom DateTime  @default(now()) @map("valid_from") @db.Timestamptz(6)
-  validTo   DateTime? @map("valid_to") @db.Timestamptz(6)
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdBy String?   @map("created_by") @db.Uuid
-  version   Int       @default(1)
+  scopeId            String    @map("scope_id") @db.Uuid
+  /// JURISDICTION scopes cover descendants only when explicitly enabled.
+  includeDescendants Boolean   @default(false) @map("include_descendants")
+  revokedBy          String?   @map("revoked_by") @db.Uuid
+  revocationReason   String?   @map("revocation_reason")
+  validFrom          DateTime  @default(now()) @map("valid_from") @db.Timestamptz(6)
+  validTo            DateTime? @map("valid_to") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy          String?   @map("created_by") @db.Uuid
+  version            Int       @default(1)
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   user   User   @relation(fields: [tenantId, userId], references: [tenantId, id])

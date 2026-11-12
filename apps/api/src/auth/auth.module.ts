@@ -8,6 +8,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { PasswordService } from './password.service';
 import { SessionGuard } from './session.guard';
+import { PermissionsGuard } from '../authz/permissions.guard';
 import { SessionService } from './session.service';
 
 const env = loadEnv();
@@ -32,7 +33,9 @@ const env = loadEnv();
     SessionService,
     AuthService,
     AuthorizationService,
+    // Order matters: authenticate first, then check route permissions.
     { provide: APP_GUARD, useClass: SessionGuard },
+    { provide: APP_GUARD, useClass: PermissionsGuard },
   ],
   exports: [APP_ENV, AuthorizationService, SessionService, PasswordService, MailSender],
 })

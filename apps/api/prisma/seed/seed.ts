@@ -135,6 +135,7 @@ async function seedTenant(tx: Tx, passwordHash: string): Promise<void> {
           roleId: roleIds.get(u.role)!,
           scopeType: scope.type,
           scopeId: scope.type === 'TENANT' ? tenantId : jurisdictionIds.get(scope.code)!,
+          includeDescendants: scope.type === 'JURISDICTION',
           validFrom: date(FINANCIAL_YEAR.startDate),
         },
       });
