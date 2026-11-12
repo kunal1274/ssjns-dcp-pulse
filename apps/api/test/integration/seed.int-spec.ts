@@ -43,10 +43,15 @@ describe('synthetic ASSAM-DEMO seed', () => {
         [tenantId],
       ),
     ).toBe(3);
-    expect(await count(`SELECT count(*) n FROM schemes WHERE tenant_id = $1`, [tenantId])).toBe(12);
+    expect(
+      await count(
+        `SELECT count(*) n FROM schemes WHERE tenant_id = $1 AND scheme_code LIKE 'DEMO-%'`,
+        [tenantId],
+      ),
+    ).toBe(12);
     const cats = (
       await db.query(
-        `SELECT category, count(*)::int n FROM schemes WHERE tenant_id = $1 GROUP BY category ORDER BY category`,
+        `SELECT category, count(*)::int n FROM schemes WHERE tenant_id = $1 AND scheme_code LIKE 'DEMO-%' GROUP BY category ORDER BY category`,
         [tenantId],
       )
     ).rows;
@@ -143,8 +148,8 @@ describe('synthetic ASSAM-DEMO seed', () => {
       `SELECT
          (SELECT sum(a.amount) FROM budget_allocations a
            WHERE a.tenant_id = $1 AND a.status = 'APPROVED'
-             AND NOT EXISTS (SELECT 1 FROM budget_allocations c WHERE c.parent_allocation_id = a.id)) AS leaf_total,
-         (SELECT sum(total_amount) FROM budget_versions WHERE tenant_id = $1 AND status = 'APPROVED') AS approved_total`,
+             AND a.created_by IS NULL AND NOT EXISTS (SELECT 1 FROM budget_allocations c WHERE c.parent_allocation_id = a.id)) AS leaf_total,
+         (SELECT sum(total_amount) FROM budget_versions WHERE tenant_id = $1 AND status = 'APPROVED' AND created_by IS NULL AND scheme_id IS NOT NULL) AS approved_total`,
       [tenantId],
     );
     expect(r.leaf_total).toBe(r.approved_total);

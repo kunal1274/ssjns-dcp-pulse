@@ -3,6 +3,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { loadEnv } from './config/env';
 import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
+import { SchemesModule } from './schemes/schemes.module';
 import { HealthModule } from './health/health.module';
 import { loggerParams } from './logging';
 import { PrismaModule } from './prisma/prisma.module';
@@ -13,6 +14,7 @@ import { PrismaModule } from './prisma/prisma.module';
     PrismaModule,
     AuthModule,
     AdminModule,
+    SchemesModule,
     HealthModule,
   ],
 })

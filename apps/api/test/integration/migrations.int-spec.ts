@@ -19,6 +19,8 @@ const EXPECTED_TABLES = [
   'user_sessions',
   'password_reset_tokens',
   'authentication_events',
+  'budget_revisions',
+  'idempotency_keys',
   'financial_years',
   'fund_releases',
   'import_batches',
