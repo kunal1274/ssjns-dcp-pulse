@@ -74,3 +74,41 @@ jobs:
       - uses: actions/checkout@v4
       - run: docker build -f infra/docker/api.Dockerfile -t dcp-pulse-api:ci .
       - run: docker build -f infra/docker/web.Dockerfile -t dcp-pulse-web:ci .
+
+  e2e:
+    name: Playwright journeys (Docker stack)
+    # Playwright has no Chromium build for ubuntu-latest (26.04) yet.
+    runs-on: ubuntu-24.04
+    env:
+      # Throwaway values for the ephemeral CI stack only.
+      SEED_DEMO_PASSWORD: ci-seed-password-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.9 }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Create CI .env
+        run: |
+          sed -E \
+            -e 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=ci-owner-password-only/' \
+            -e 's/^APP_DB_PASSWORD=.*/APP_DB_PASSWORD=ci-app-password-only/' \
+            -e "s/^SEED_DEMO_PASSWORD=.*/SEED_DEMO_PASSWORD=${SEED_DEMO_PASSWORD}/" \
+            -e 's/^REDIS_PASSWORD=.*/REDIS_PASSWORD=ci-redis-password-only/' \
+            -e 's/^MINIO_ROOT_PASSWORD=.*/MINIO_ROOT_PASSWORD=ci-minio-password-only/' \
+            -e 's/^AUTH_RATE_LIMIT_PER_MINUTE=.*/AUTH_RATE_LIMIT_PER_MINUTE=60/' \
+            .env.example > .env
+      - run: docker compose up -d --build --wait
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - if: failure()
+        run: docker compose logs api web migrate --tail 200
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7

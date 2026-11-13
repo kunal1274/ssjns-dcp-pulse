@@ -40,6 +40,15 @@ services:
       API_PORT: 3000
       LOG_LEVEL: ${LOG_LEVEL:-info}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      DEFAULT_TENANT_CODE: ${DEFAULT_TENANT_CODE:-ASSAM-DEMO}
+      # Plain-HTTP local stack; set COOKIE_SECURE=true behind HTTPS.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      SESSION_IDLE_MINUTES: ${SESSION_IDLE_MINUTES:-30}
+      SESSION_ABSOLUTE_HOURS: ${SESSION_ABSOLUTE_HOURS:-12}
+      AUTH_RATE_LIMIT_PER_MINUTE: ${AUTH_RATE_LIMIT_PER_MINUTE:-10}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-file}
+      MAIL_OUTBOX_DIR: /tmp/mail-outbox
     ports: ['127.0.0.1:${API_PORT:-3000}:3000']
     depends_on:
       migrate: { condition: service_completed_successfully }

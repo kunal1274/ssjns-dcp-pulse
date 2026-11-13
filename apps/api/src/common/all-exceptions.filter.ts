@@ -38,7 +38,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
         typeof response === 'object' && response !== null && 'message' in response
           ? (response as { message: string | string[] }).message
           : exception.message;
-      body = { statusCode: status, error: HttpStatus[status] ?? 'Error', message, requestId };
+      // Domain code (e.g. INVALID_CREDENTIALS) when the thrower supplied one.
+      const code =
+        typeof response === 'object' && response !== null && 'error' in response
+          ? (response as { error: unknown }).error
+          : undefined;
+      const error =
+        typeof code === 'string' && /^[A-Z][A-Z0-9_]+$/.test(code)
+          ? code
+          : (HttpStatus[status] ?? 'Error');
+      body = { statusCode: status, error, message, requestId };
     } else {
       this.logger.error(
         {

@@ -36,17 +36,22 @@ describe('synthetic ASSAM-DEMO seed', () => {
     expect(rows.find((r) => r.code === 'CD-A1')?.depth).toBe(2);
   });
 
-  it('has 3 implementing agencies, 12 schemes across 3 categories, FY 2026-27 and 8 users', async () => {
+  it('has 3 implementing agencies, 12 schemes across 3 categories, FY 2026-27 and 9 users', async () => {
     expect(
       await count(
         `SELECT count(*) n FROM agencies WHERE tenant_id = $1 AND agency_type = 'IMPLEMENTING'`,
         [tenantId],
       ),
     ).toBe(3);
-    expect(await count(`SELECT count(*) n FROM schemes WHERE tenant_id = $1`, [tenantId])).toBe(12);
+    expect(
+      await count(
+        `SELECT count(*) n FROM schemes WHERE tenant_id = $1 AND scheme_code LIKE 'DEMO-%'`,
+        [tenantId],
+      ),
+    ).toBe(12);
     const cats = (
       await db.query(
-        `SELECT category, count(*)::int n FROM schemes WHERE tenant_id = $1 GROUP BY category ORDER BY category`,
+        `SELECT category, count(*)::int n FROM schemes WHERE tenant_id = $1 AND scheme_code LIKE 'DEMO-%' GROUP BY category ORDER BY category`,
         [tenantId],
       )
     ).rows;
@@ -61,20 +66,24 @@ describe('synthetic ASSAM-DEMO seed', () => {
         [tenantId],
       ),
     ).toBe(1);
-    expect(await count(`SELECT count(*) n FROM users WHERE tenant_id = $1`, [tenantId])).toBe(8);
+    expect(
+      await count(`SELECT count(*) n FROM users WHERE tenant_id = $1 AND created_by IS NULL`, [
+        tenantId,
+      ]),
+    ).toBe(9);
   });
 
-  it('stores only bcrypt hashes for demo users with example.test emails', async () => {
+  it('stores only Argon2id hashes for demo users with example.test emails', async () => {
     const rows = (
       await db.query(
-        `SELECT u.email, c.password_hash FROM users u JOIN user_credentials c ON c.user_id = u.id WHERE u.tenant_id = $1`,
+        `SELECT u.email, c.password_hash FROM users u JOIN user_credentials c ON c.user_id = u.id WHERE u.tenant_id = $1 AND u.created_by IS NULL`,
         [tenantId],
       )
     ).rows;
-    expect(rows).toHaveLength(8);
+    expect(rows).toHaveLength(9);
     for (const r of rows) {
       expect(r.email).toMatch(/@example\.test$/);
-      expect(r.password_hash).toMatch(/^\$2[aby]\$12\$/);
+      expect(r.password_hash).toMatch(/^\$argon2id\$v=19\$/);
     }
   });
 
@@ -139,8 +148,8 @@ describe('synthetic ASSAM-DEMO seed', () => {
       `SELECT
          (SELECT sum(a.amount) FROM budget_allocations a
            WHERE a.tenant_id = $1 AND a.status = 'APPROVED'
-             AND NOT EXISTS (SELECT 1 FROM budget_allocations c WHERE c.parent_allocation_id = a.id)) AS leaf_total,
-         (SELECT sum(total_amount) FROM budget_versions WHERE tenant_id = $1 AND status = 'APPROVED') AS approved_total`,
+             AND a.created_by IS NULL AND NOT EXISTS (SELECT 1 FROM budget_allocations c WHERE c.parent_allocation_id = a.id)) AS leaf_total,
+         (SELECT sum(total_amount) FROM budget_versions WHERE tenant_id = $1 AND status = 'APPROVED' AND created_by IS NULL AND scheme_id IS NOT NULL) AS approved_total`,
       [tenantId],
     );
     expect(r.leaf_total).toBe(r.approved_total);

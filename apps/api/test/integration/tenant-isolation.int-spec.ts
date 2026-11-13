@@ -59,7 +59,8 @@ describe('tenant isolation (RLS)', () => {
   });
 
   it('returns only the current tenant rows', async () => {
-    expect(await countAs(tenantA, 'schemes')).toBe(12);
+    // Seeded 12 plus any created by e2e runs; tenant B must still see none.
+    expect(await countAs(tenantA, 'schemes')).toBeGreaterThanOrEqual(12);
     expect(await countAs(tenantB, 'schemes')).toBe(0);
     expect(await countAs(tenantA, 'jurisdiction_types')).toBe(3);
     expect(await countAs(tenantB, 'jurisdiction_types')).toBe(1);
@@ -144,7 +145,9 @@ describe('tenant isolation (RLS)', () => {
   it('PrismaService.withTenant scopes queries to the given tenant', async () => {
     const prisma = new PrismaService();
     try {
-      await expect(prisma.withTenant(tenantA, (tx) => tx.scheme.count())).resolves.toBe(12);
+      await expect(
+        prisma.withTenant(tenantA, (tx) => tx.scheme.count()),
+      ).resolves.toBeGreaterThanOrEqual(12);
       await expect(prisma.withTenant(tenantB, (tx) => tx.scheme.count())).resolves.toBe(0);
       await expect(prisma.scheme.count()).resolves.toBe(0);
       await expect(prisma.withTenant('not-a-uuid', (tx) => tx.scheme.count())).rejects.toThrow(

@@ -3,11 +3,11 @@
  * the tenant already exists (use `pnpm db:reset` for a clean database).
  *
  * Runs as the database owner (MIGRATION_DATABASE_URL), inside one transaction.
- * Demo passwords come from SEED_DEMO_PASSWORD and are stored only as bcrypt hashes.
+ * Demo passwords come from SEED_DEMO_PASSWORD and are stored only as Argon2id hashes.
  */
 import { PERMISSIONS, ROLE_TEMPLATES, SYNTHETIC_DATA_DISCLAIMER } from '@dcp/shared';
 import { Prisma, PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+import argon2 from 'argon2';
 import {
   AGENCIES,
   AGENCY_JURISDICTIONS,
@@ -118,26 +118,7 @@ async function seedTenant(tx: Tx, passwordHash: string): Promise<void> {
     })),
   });
 
-  const userIds = new Map<string, string>();
-  for (const u of DEMO_USERS) {
-    const user = await tx.user.create({
-      data: { tenantId, email: u.email, name: u.name, credentialRef: 'local:user_credentials' },
-    });
-    userIds.set(u.email, user.id);
-    await tx.userCredential.create({ data: { tenantId, userId: user.id, passwordHash } });
-    for (const scope of u.scopes) {
-      await tx.userRoleScope.create({
-        data: {
-          tenantId,
-          userId: user.id,
-          roleId: roleIds.get(u.role)!,
-          scopeType: scope.type,
-          scopeId: scope.type === 'TENANT' ? tenantId : jurisdictionIds.get(scope.code)!,
-          validFrom: date(FINANCIAL_YEAR.startDate),
-        },
-      });
-    }
-  }
+  const userIds = await ensureDemoUsers(tx, tenantId, passwordHash, roleIds, jurisdictionIds);
   const user = (email: string): string => userIds.get(email)!;
   const planner = user('state.planner@example.test');
   const fieldOfficer = user('field.officer@example.test');
@@ -503,6 +484,45 @@ async function seedTenant(tx: Tx, passwordHash: string): Promise<void> {
   });
 }
 
+/** Creates any demo users that do not exist yet; existing users are left untouched. */
+async function ensureDemoUsers(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  passwordHash: string,
+  roleIds: Map<string, string>,
+  jurisdictionIds: Map<string, string>,
+): Promise<Map<string, string>> {
+  const userIds = new Map<string, string>();
+  for (const u of DEMO_USERS) {
+    const found = await tx.user.findFirst({ where: { tenantId, email: u.email } });
+    if (found) {
+      userIds.set(u.email, found.id);
+      continue;
+    }
+    const user = await tx.user.create({
+      data: { tenantId, email: u.email, name: u.name, credentialRef: 'local:user_credentials' },
+    });
+    userIds.set(u.email, user.id);
+    await tx.userCredential.create({
+      data: { tenantId, userId: user.id, passwordHash, algorithm: 'argon2id' },
+    });
+    for (const scope of u.scopes) {
+      await tx.userRoleScope.create({
+        data: {
+          tenantId,
+          userId: user.id,
+          roleId: roleIds.get(u.role)!,
+          scopeType: scope.type,
+          scopeId: scope.type === 'TENANT' ? tenantId : jurisdictionIds.get(scope.code)!,
+          includeDescendants: scope.type === 'JURISDICTION',
+          validFrom: date(FINANCIAL_YEAR.startDate),
+        },
+      });
+    }
+  }
+  return userIds;
+}
+
 async function main(): Promise<void> {
   const url = process.env.MIGRATION_DATABASE_URL;
   if (!url) throw new Error('MIGRATION_DATABASE_URL is required');
@@ -510,10 +530,29 @@ async function main(): Promise<void> {
   try {
     const existing = await prisma.tenant.findUnique({ where: { code: TENANT_CODE } });
     if (existing) {
-      console.info(`Tenant ${TENANT_CODE} already seeded; no changes made.`);
+      const passwordHash = await argon2.hash(demoPassword(), { type: argon2.argon2id });
+      const added = await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT set_config('app.tenant_id', ${existing.id}, true)`;
+        const before = await tx.user.count({ where: { tenantId: existing.id } });
+        const roles = await tx.role.findMany({ where: { tenantId: existing.id } });
+        const js = await tx.jurisdiction.findMany({ where: { tenantId: existing.id } });
+        await ensureDemoUsers(
+          tx,
+          existing.id,
+          passwordHash,
+          new Map(roles.map((r) => [r.code, r.id])),
+          new Map(js.map((j) => [j.code, j.id])),
+        );
+        return (await tx.user.count({ where: { tenantId: existing.id } })) - before;
+      });
+      console.info(
+        added
+          ? `Tenant ${TENANT_CODE} already seeded; added ${added} missing demo user(s).`
+          : `Tenant ${TENANT_CODE} already seeded; no changes made.`,
+      );
       return;
     }
-    const passwordHash = await bcrypt.hash(demoPassword(), 12);
+    const passwordHash = await argon2.hash(demoPassword(), { type: argon2.argon2id });
     await prisma.$transaction((tx) => seedTenant(tx, passwordHash), { timeout: 120_000 });
     console.info(
       `Seeded tenant ${TENANT_CODE}: ${SCHEMES.length} schemes, ${DEMO_USERS.length} users.`,

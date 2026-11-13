@@ -41,8 +41,17 @@ enum UserStatus {
   ACTIVE
   DISABLED
   LOCKED
+  INVITED
+  SUSPENDED
 
   @@map("user_status")
+}
+
+enum TokenPurpose {
+  PASSWORD_RESET
+  INVITE
+
+  @@map("token_purpose")
 }
 
 enum ScopeType {
@@ -197,15 +206,17 @@ enum ImportBatchStatus {
 // ---------------------------------------------------------------------------
 
 model Tenant {
-  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name         String       @db.VarChar(200)
-  code         String       @unique @db.VarChar(50)
-  status       TenantStatus @default(ACTIVE)
-  settingsJson Json         @default("{}") @map("settings_json")
-  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdBy    String?      @map("created_by") @db.Uuid
-  version      Int          @default(1)
+  budgetRevisions BudgetRevision[]
+  idempotencyKeys IdempotencyKey[]
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String           @db.VarChar(200)
+  code            String           @unique @db.VarChar(50)
+  status          TenantStatus     @default(ACTIVE)
+  settingsJson    Json             @default("{}") @map("settings_json")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy       String?          @map("created_by") @db.Uuid
+  version         Int              @default(1)
 
   jurisdictionTypes      JurisdictionType[]
   jurisdictions          Jurisdiction[]
@@ -239,6 +250,9 @@ model Tenant {
   auditEvents            AuditEvent[]
   importBatches          ImportBatch[]
   externalRecordMappings ExternalRecordMapping[]
+  userSessions           UserSession[]
+  passwordResetTokens    PasswordResetToken[]
+  authenticationEvents   AuthenticationEvent[]
 
   @@map("tenants")
 }
@@ -343,31 +357,36 @@ model AgencyJurisdiction {
 // ---------------------------------------------------------------------------
 
 model User {
-  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String     @map("tenant_id") @db.Uuid
-  email         String     @db.VarChar(254)
-  name          String     @db.VarChar(200)
-  status        UserStatus @default(ACTIVE)
+  budgetRevisionsRequested BudgetRevision[] @relation("BudgetRevisionRequestedBy")
+  budgetRevisionsDecided   BudgetRevision[] @relation("BudgetRevisionDecidedBy")
+  id                       String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                 String           @map("tenant_id") @db.Uuid
+  email                    String           @db.VarChar(254)
+  name                     String           @db.VarChar(200)
+  status                   UserStatus       @default(ACTIVE)
   /// Reference to the credential record/provider; secrets are never stored on this table.
-  credentialRef String?    @map("credential_ref") @db.VarChar(200)
-  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdBy     String?    @map("created_by") @db.Uuid
-  version       Int        @default(1)
+  credentialRef            String?          @map("credential_ref") @db.VarChar(200)
+  createdAt                DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy                String?          @map("created_by") @db.Uuid
+  version                  Int              @default(1)
 
-  tenant                  Tenant               @relation(fields: [tenantId], references: [id])
+  tenant                  Tenant                @relation(fields: [tenantId], references: [id])
   credential              UserCredential?
   roleScopes              UserRoleScope[]
-  approvedBudgetVersions  BudgetVersion[]      @relation("BudgetVersionApprovedBy")
-  submittedBudgetRequests BudgetRequest[]      @relation("BudgetRequestSubmittedBy")
-  approvedAllocations     BudgetAllocation[]   @relation("AllocationApprovedBy")
-  submittedExpenditure    ExpenditureRecord[]  @relation("ExpenditureSubmittedBy")
-  verifiedExpenditure     ExpenditureRecord[]  @relation("ExpenditureVerifiedBy")
-  progressSubmissions     ProgressSubmission[] @relation("ProgressSubmittedBy")
-  uploadedEvidence        EvidenceFile[]       @relation("EvidenceUploadedBy")
+  approvedBudgetVersions  BudgetVersion[]       @relation("BudgetVersionApprovedBy")
+  submittedBudgetRequests BudgetRequest[]       @relation("BudgetRequestSubmittedBy")
+  approvedAllocations     BudgetAllocation[]    @relation("AllocationApprovedBy")
+  submittedExpenditure    ExpenditureRecord[]   @relation("ExpenditureSubmittedBy")
+  verifiedExpenditure     ExpenditureRecord[]   @relation("ExpenditureVerifiedBy")
+  progressSubmissions     ProgressSubmission[]  @relation("ProgressSubmittedBy")
+  uploadedEvidence        EvidenceFile[]        @relation("EvidenceUploadedBy")
   approvalDecisions       ApprovalDecision[]
-  assignedAlerts          Alert[]              @relation("AlertAssignee")
+  assignedAlerts          Alert[]               @relation("AlertAssignee")
   correctiveActions       CorrectiveAction[]
+  sessions                UserSession[]
+  passwordResetTokens     PasswordResetToken[]
+  authenticationEvents    AuthenticationEvent[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, email])
@@ -376,15 +395,18 @@ model User {
 
 /// Local credential store (bcrypt hash only). Kept apart from `users` so user reads never touch hashes.
 model UserCredential {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId     String   @map("tenant_id") @db.Uuid
-  userId       String   @unique @map("user_id") @db.Uuid
-  passwordHash String   @map("password_hash") @db.VarChar(200)
-  algorithm    String   @default("bcrypt") @db.VarChar(20)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdBy    String?  @map("created_by") @db.Uuid
-  version      Int      @default(1)
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  userId            String    @unique @map("user_id") @db.Uuid
+  passwordHash      String    @map("password_hash") @db.VarChar(200)
+  algorithm         String    @default("argon2id") @db.VarChar(20)
+  failedAttempts    Int       @default(0) @map("failed_attempts")
+  lockedUntil       DateTime? @map("locked_until") @db.Timestamptz(6)
+  passwordChangedAt DateTime? @map("password_changed_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy         String?   @map("created_by") @db.Uuid
+  version           Int       @default(1)
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   user   User   @relation(fields: [tenantId, userId], references: [tenantId, id])
@@ -399,6 +421,7 @@ model Role {
   code             String       @db.VarChar(50)
   name             String       @db.VarChar(100)
   isSystemTemplate Boolean      @default(false) @map("is_system_template")
+  description      String?      @db.VarChar(500)
   status           RecordStatus @default(ACTIVE)
   createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -450,19 +473,23 @@ model RolePermission {
 }
 
 model UserRoleScope {
-  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId  String    @map("tenant_id") @db.Uuid
-  userId    String    @map("user_id") @db.Uuid
-  roleId    String    @map("role_id") @db.Uuid
-  scopeType ScopeType @map("scope_type")
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
+  roleId             String    @map("role_id") @db.Uuid
+  scopeType          ScopeType @map("scope_type")
   /// Id of the tenant, jurisdiction, agency or scheme the role applies to.
-  scopeId   String    @map("scope_id") @db.Uuid
-  validFrom DateTime  @default(now()) @map("valid_from") @db.Timestamptz(6)
-  validTo   DateTime? @map("valid_to") @db.Timestamptz(6)
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdBy String?   @map("created_by") @db.Uuid
-  version   Int       @default(1)
+  scopeId            String    @map("scope_id") @db.Uuid
+  /// JURISDICTION scopes cover descendants only when explicitly enabled.
+  includeDescendants Boolean   @default(false) @map("include_descendants")
+  revokedBy          String?   @map("revoked_by") @db.Uuid
+  revocationReason   String?   @map("revocation_reason")
+  validFrom          DateTime  @default(now()) @map("valid_from") @db.Timestamptz(6)
+  validTo            DateTime? @map("valid_to") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy          String?   @map("created_by") @db.Uuid
+  version            Int       @default(1)
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   user   User   @relation(fields: [tenantId, userId], references: [tenantId, id])
@@ -540,6 +567,14 @@ model Scheme {
   status          SchemeStatus @default(DRAFT)
   startDate       DateTime?    @map("start_date") @db.Date
   targetEndDate   DateTime?    @map("target_end_date") @db.Date
+  description     String?
+  objectives      String?
+  department      String?      @db.VarChar(150)
+  statusReason    String?      @map("status_reason")
+  submittedById   String?      @map("submitted_by") @db.Uuid
+  submittedAt     DateTime?    @map("submitted_at") @db.Timestamptz(6)
+  approvedById    String?      @map("approved_by") @db.Uuid
+  approvedAt      DateTime?    @map("approved_at") @db.Timestamptz(6)
   createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdBy       String?      @map("created_by") @db.Uuid
@@ -619,6 +654,7 @@ model SchemeMilestone {
 // ---------------------------------------------------------------------------
 
 model BudgetVersion {
+  revisions         BudgetRevision[]
   id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId          String              @map("tenant_id") @db.Uuid
   financialYearId   String              @map("financial_year_id") @db.Uuid
@@ -651,21 +687,24 @@ model BudgetVersion {
 }
 
 model BudgetRequest {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId           String   @map("tenant_id") @db.Uuid
-  schemeId           String   @map("scheme_id") @db.Uuid
-  requestingAgencyId String   @map("requesting_agency_id") @db.Uuid
-  periodId           String   @map("period_id") @db.Uuid
-  amount             Decimal  @db.Decimal(18, 2)
-  currencyCode       String   @default("INR") @map("currency_code") @db.Char(3)
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  schemeId           String    @map("scheme_id") @db.Uuid
+  requestingAgencyId String    @map("requesting_agency_id") @db.Uuid
+  periodId           String    @map("period_id") @db.Uuid
+  amount             Decimal   @db.Decimal(18, 2)
+  currencyCode       String    @default("INR") @map("currency_code") @db.Char(3)
   justification      String
   /// Configurable workflow state (example: DRAFT, SUBMITTED, DISTRICT_REVIEW, STATE_REVIEW, APPROVED, REJECTED, RETURNED).
-  status             String   @default("DRAFT") @db.VarChar(40)
-  submittedById      String?  @map("submitted_by") @db.Uuid
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdBy          String?  @map("created_by") @db.Uuid
-  version            Int      @default(1)
+  status             String    @default("DRAFT") @db.VarChar(40)
+  submittedById      String?   @map("submitted_by") @db.Uuid
+  reviewedById       String?   @map("reviewed_by") @db.Uuid
+  reviewedAt         DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  reviewComment      String?   @map("review_comment")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy          String?   @map("created_by") @db.Uuid
+  version            Int       @default(1)
 
   tenant           Tenant          @relation(fields: [tenantId], references: [id])
   scheme           Scheme          @relation(fields: [tenantId, schemeId], references: [tenantId, id])
@@ -679,12 +718,14 @@ model BudgetRequest {
 }
 
 model BudgetAllocation {
+  revisions               BudgetRevision[]
   id                      String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId                String           @map("tenant_id") @db.Uuid
   budgetVersionId         String           @map("budget_version_id") @db.Uuid
   parentAllocationId      String?          @map("parent_allocation_id") @db.Uuid
   recipientJurisdictionId String           @map("recipient_jurisdiction_id") @db.Uuid
-  schemeId                String           @map("scheme_id") @db.Uuid
+  /// Null for intermediate (state → district / co-district) allocations.
+  schemeId                String?          @map("scheme_id") @db.Uuid
   amount                  Decimal          @db.Decimal(18, 2)
   currencyCode            String           @default("INR") @map("currency_code") @db.Char(3)
   status                  AllocationStatus @default(DRAFT)
@@ -700,7 +741,7 @@ model BudgetAllocation {
   parent                BudgetAllocation?  @relation("AllocationTree", fields: [tenantId, parentAllocationId], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
   children              BudgetAllocation[] @relation("AllocationTree")
   recipientJurisdiction Jurisdiction       @relation(fields: [tenantId, recipientJurisdictionId], references: [tenantId, id])
-  scheme                Scheme             @relation(fields: [tenantId, schemeId], references: [tenantId, id])
+  scheme                Scheme?            @relation(fields: [tenantId, schemeId], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
   approvedBy            User?              @relation("AllocationApprovedBy", fields: [tenantId, approvedById], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
 
   @@unique([tenantId, id])
@@ -1098,4 +1139,117 @@ model ExternalRecordMapping {
 
   @@unique([tenantId, sourceSystem, entityType, externalId])
   @@map("external_record_mappings")
+}
+
+/// Server-side session. Only SHA-256 hashes of the session and CSRF tokens are stored.
+model UserSession {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  tokenHash         String    @unique @map("token_hash") @db.Char(64)
+  csrfTokenHash     String    @map("csrf_token_hash") @db.Char(64)
+  idleExpiresAt     DateTime  @map("idle_expires_at") @db.Timestamptz(6)
+  absoluteExpiresAt DateTime  @map("absolute_expires_at") @db.Timestamptz(6)
+  lastSeenAt        DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedReason     String?   @map("revoked_reason") @db.VarChar(50)
+  ipAddress         String?   @map("ip_address") @db.VarChar(64)
+  userAgent         String?   @map("user_agent") @db.VarChar(300)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [tenantId, userId], references: [tenantId, id])
+
+  @@unique([tenantId, id])
+  @@index([tenantId, userId])
+  @@map("user_sessions")
+}
+
+/// Expiring, single-use token for password reset or invitation acceptance. Only the hash is stored.
+model PasswordResetToken {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String       @map("tenant_id") @db.Uuid
+  userId    String       @map("user_id") @db.Uuid
+  tokenHash String       @unique @map("token_hash") @db.Char(64)
+  purpose   TokenPurpose
+  expiresAt DateTime     @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime?    @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?      @map("created_by") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [tenantId, userId], references: [tenantId, id])
+
+  @@index([tenantId, userId])
+  @@map("password_reset_tokens")
+}
+
+/// Append-only security log of authentication activity (login, logout, reset, lockout).
+model AuthenticationEvent {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid
+  eventType   String   @map("event_type") @db.VarChar(50)
+  outcome     String   @db.VarChar(20)
+  ipAddress   String?  @map("ip_address") @db.VarChar(64)
+  userAgent   String?  @map("user_agent") @db.VarChar(300)
+  requestId   String?  @map("request_id") @db.VarChar(100)
+  detailsJson Json?    @map("details_json")
+  occurredAt  DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User?  @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([tenantId, occurredAt])
+  @@index([tenantId, userId])
+  @@map("authentication_events")
+}
+
+/// Revision of an approved budget ceiling or allocation; applied only when a different user approves it.
+model BudgetRevision {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  targetType      String    @map("target_type") @db.VarChar(20)
+  budgetVersionId String?   @map("budget_version_id") @db.Uuid
+  allocationId    String?   @map("allocation_id") @db.Uuid
+  previousAmount  Decimal   @map("previous_amount") @db.Decimal(18, 2)
+  requestedAmount Decimal   @map("requested_amount") @db.Decimal(18, 2)
+  reason          String
+  status          String    @default("PENDING") @db.VarChar(20)
+  requestedById   String    @map("requested_by") @db.Uuid
+  decidedById     String?   @map("decided_by") @db.Uuid
+  decidedAt       DateTime? @map("decided_at") @db.Timestamptz(6)
+  decisionComment String?   @map("decision_comment")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version         Int       @default(1)
+
+  tenant        Tenant            @relation(fields: [tenantId], references: [id])
+  budgetVersion BudgetVersion?    @relation(fields: [tenantId, budgetVersionId], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
+  allocation    BudgetAllocation? @relation(fields: [tenantId, allocationId], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
+  requestedBy   User              @relation("BudgetRevisionRequestedBy", fields: [tenantId, requestedById], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
+  decidedBy     User?             @relation("BudgetRevisionDecidedBy", fields: [tenantId, decidedById], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@map("budget_revisions")
+}
+
+/// Stored responses for sensitive writes, keyed per user, so retries do not repeat the write.
+model IdempotencyKey {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  key            String   @db.VarChar(100)
+  route          String   @db.VarChar(200)
+  requestHash    String   @map("request_hash") @db.Char(64)
+  responseStatus Int?     @map("response_status")
+  responseBody   Json?    @map("response_body")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, userId, key])
+  @@map("idempotency_keys")
 }

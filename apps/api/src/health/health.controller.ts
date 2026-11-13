@@ -1,3 +1,4 @@
+import { Public } from '../auth/auth-context';
 import { Controller, Get, HttpCode, Res } from '@nestjs/common';
 import { ApiOkResponse, ApiServiceUnavailableResponse, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
@@ -5,6 +6,7 @@ import type { LivenessResponse, ReadinessResponse } from '@dcp/shared';
 import { HealthService } from './health.service';
 
 @ApiTags('health')
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(private readonly health: HealthService) {}

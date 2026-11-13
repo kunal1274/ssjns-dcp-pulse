@@ -6,17 +6,21 @@ _DCP Pulse Developer Specification v1.1_.
 > Synthetic demonstration data. Not a government deployment and not an official
 > administrative structure. No government system integrations are implemented.
 
-## Status: F01–F03 foundation only
+## Status: F01–F06
 
-| Stage                          | Scope                                                                                    | State                        |
-| ------------------------------ | ---------------------------------------------------------------------------------------- | ---------------------------- |
-| F01 Repository and standards   | pnpm TypeScript monorepo, lint/format, CI                                                | Implemented                  |
-| F02 Development environment    | Docker Compose (PostGIS, API, web, Redis; MinIO opt-in), health checks, env examples     | Implemented (MinIO see gaps) |
-| F03 Core data and tenancy      | Prisma schema for the §4 model, SQL integrity/RLS migration, synthetic `ASSAM-DEMO` seed | Implemented                  |
-| F04+ (auth, schemes, budgets…) | —                                                                                        | **Not implemented**          |
+| Stage                                               | Scope                                                                                    | State                        |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------- |
+| F01 Repository and standards                        | pnpm TypeScript monorepo, lint/format, CI                                                | Implemented                  |
+| F02 Development environment                         | Docker Compose (PostGIS, API, web, Redis; MinIO opt-in), health checks, env examples     | Implemented (MinIO see gaps) |
+| F03 Core data and tenancy                           | Prisma schema for the §4 model, SQL integrity/RLS migration, synthetic `ASSAM-DEMO` seed | Implemented                  |
+| F04 Authentication                                  | Server-side sessions, Argon2id, CSRF, invite/reset tokens, rate limit, lockout           | Implemented                  |
+| F05 Authorisation                                   | Scoped RBAC (tenant/jurisdiction/agency/scheme), delegation rules, admin UI              | Implemented                  |
+| F06 Schemes and budgets                             | Scheme lifecycle, ceilings, allocations, revisions, funding requests, UI                 | Implemented                  |
+| F07+ (releases, expenditure, progress, dashboards…) | —                                                                                        | **Not implemented**          |
 
-The web app is an engineering **status page** showing live API readiness. There are no
-dashboards, KPIs, maps or business screens yet.
+The web app has sign-in, profile, scheme register, budget planning and user/role
+administration screens, plus the engineering status page. There are no dashboards, KPIs or
+maps. See [docs/traceability-f04-f06.md](docs/traceability-f04-f06.md).
 
 ## Layout
 
@@ -90,14 +94,27 @@ See [docs/data-layer.md](docs/data-layer.md) for financial rules and seed conten
 
 ## Demo users
 
-The seed creates 8 users at `*@example.test` (one per role template). Their password is
-whatever you set in `SEED_DEMO_PASSWORD`; it is never committed or logged. Login is
-**not implemented** until F04.
+The seed creates 9 users at `*@example.test` (one per role template, plus a second state planner, `budget.checker`, for maker-checker approvals). Their password is
+whatever you set in `SEED_DEMO_PASSWORD`; it is never committed or logged. Re-running the
+seed on an existing tenant only adds demo users that are missing.
+
+## Browser journeys (Playwright)
+
+Against a running Docker stack (`docker compose up -d --build`):
+
+```bash
+pnpm exec playwright install chromium
+SEED_DEMO_PASSWORD=<your seed password> pnpm test:e2e   # E2E_BASE_URL defaults to http://localhost:8080
+```
+
+The suite signs in about seven times, so set `AUTH_RATE_LIMIT_PER_MINUTE=60` in `.env` for
+repeated local runs (CI does the same); the default of 10 per minute will return 429.
 
 ## Known gaps
 
-- Authentication, authorisation enforcement and all business APIs (F04+) are not implemented.
-  Role/permission tables and templates exist and are seeded only.
+- Releases, expenditure, physical progress, dashboards, alert evaluation, reporting and
+  integrations (F07+) are not implemented.
+- Email is not sent: invitation and reset emails go to a local file outbox (`MAIL_TRANSPORT=file`).
 - Redis is provisioned but unused. MinIO is behind the `storage` profile because the official
   images could not be pulled from the build environment; set `MINIO_IMAGE` to an accessible image.
 - Alert rules are seeded as illustrative (`is_illustrative = true`); no alert engine exists.

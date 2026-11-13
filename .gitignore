@@ -9,3 +9,6 @@ apps/web/.env.local
 *.log
 .DS_Store
 .vite/
+apps/api/var/
+playwright-report/
+test-results/
