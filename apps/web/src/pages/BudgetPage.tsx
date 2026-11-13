@@ -553,7 +553,12 @@ function RevisionsCard({
 function FundingRequestsCard({ schemes }: { schemes: Scheme[] }) {
   const { can, me } = useAuth();
   const [rows, setRows] = useState<FundingRequest[]>([]);
-  const [periods, setPeriods] = useState<{ id: string; code: string }[]>([]);
+  const [periods, setPeriods] = useState<{ id: string; code: string; financialYearId: string }[]>(
+    [],
+  );
+  const [schemeId, setSchemeId] = useState('');
+  const selected = schemes.find((s) => s.id === schemeId) ?? schemes[0];
+  const yearPeriods = periods.filter((p) => p.financialYearId === selected?.financialYear.id);
   const load = useCallback(() => {
     api<FundingRequest[]>('/budget/requests')
       .then(setRows)
@@ -562,7 +567,7 @@ function FundingRequestsCard({ schemes }: { schemes: Scheme[] }) {
   useEffect(() => {
     load();
     if (can('budget.request.create', 'budget.allocate'))
-      api<{ id: string; code: string }[]>('/budget/periods')
+      api<{ id: string; code: string; financialYearId: string }[]>('/budget/periods')
         .then(setPeriods)
         .catch(() => setPeriods([]));
   }, [load, can]);
@@ -632,7 +637,12 @@ function FundingRequestsCard({ schemes }: { schemes: Scheme[] }) {
           aria-label="New funding request"
         >
           <Field label="Scheme">
-            <Select name="schemeId" required>
+            <Select
+              name="schemeId"
+              required
+              value={selected?.id ?? ''}
+              onChange={(e) => setSchemeId(e.target.value)}
+            >
               {schemes.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.schemeCode} — {s.name}
@@ -642,7 +652,7 @@ function FundingRequestsCard({ schemes }: { schemes: Scheme[] }) {
           </Field>
           <Field label="Period">
             <Select name="periodId" required>
-              {periods.map((p) => (
+              {yearPeriods.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.code}
                 </option>

@@ -27,9 +27,18 @@ const include = {
   agency: { select: { id: true, code: true, name: true } },
   financialYear: { select: { id: true, code: true } },
   budgetVersions: { orderBy: { versionNumber: 'asc' as const } },
-  budgetAllocations: { where: { status: 'APPROVED' as const }, select: { amount: true } },
+  budgetAllocations: {
+    where: { status: 'APPROVED' as const },
+    select: { id: true, parentAllocationId: true, amount: true },
+  },
 } satisfies Prisma.SchemeInclude;
 type Row = Prisma.SchemeGetPayload<{ include: typeof include }>;
+
+/** Sums only the lowest approved allocations, so a parent and its child for the same scheme count once. */
+const leafTotal = (rows: Row['budgetAllocations']) => {
+  const parents = new Set(rows.map((a) => a.parentAllocationId));
+  return sum(rows.filter((a) => !parents.has(a.id)).map((a) => a.amount));
+};
 
 const view = (s: Row) => {
   const approved = s.budgetVersions.find((v) => v.status === 'APPROVED');
@@ -51,7 +60,7 @@ const view = (s: Row) => {
     agency: s.agency,
     approvedBudget: approved ? fmt(approved.totalAmount) : null,
     proposedBudget: proposed ? fmt(proposed.totalAmount) : null,
-    allocatedAmount: fmt(sum(s.budgetAllocations.map((a) => a.amount))),
+    allocatedAmount: fmt(leafTotal(s.budgetAllocations)),
     createdBy: s.createdBy,
     submittedBy: s.submittedById,
     submittedAt: s.submittedAt,
@@ -206,6 +215,10 @@ export class SchemesService {
           `Schemes can only be edited in DRAFT or RETURNED, not ${s.status}.`,
         );
       const { version, ...fields } = dto;
+      const start = fields.startDate ? new Date(fields.startDate) : s.startDate;
+      const end = fields.targetEndDate ? new Date(fields.targetEndDate) : s.targetEndDate;
+      if (start && end && end < start)
+        throw badRequest('INVALID_DATES', 'Target end date must be on or after the start date.');
       const res = await tx.scheme.updateMany({
         where: { id, version },
         data: {

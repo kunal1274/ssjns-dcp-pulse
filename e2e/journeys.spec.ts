@@ -93,11 +93,14 @@ test.describe.serial('scheme registry and budget planning', () => {
     for (const x of await planner.api('GET', '/jurisdictions')) j[x.code] = x.id;
     // A fresh financial year per run keeps ceiling registration repeatable.
     fyCode = `E2E-${RUN}`.slice(0, 20);
+    // Financial years cannot overlap, so start after the latest configured year.
+    const years: { endDate: string }[] = await planner.api('GET', '/budget/financial-years');
+    const y = Math.max(2030, ...years.map((f) => new Date(f.endDate).getUTCFullYear()));
     fyId = (
       await planner.api('POST', '/budget/financial-years', {
         code: fyCode,
-        startDate: '2030-04-01',
-        endDate: '2031-03-31',
+        startDate: `${y}-04-01`,
+        endDate: `${y + 1}-03-31`,
       })
     ).id;
   });

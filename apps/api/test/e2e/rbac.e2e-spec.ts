@@ -225,6 +225,19 @@ describe('F05 roles, permissions and jurisdiction security (e2e, real database)'
     expect(emails).not.toContain('state.planner@example.test');
     expect(emails).not.toContain(bUser.email);
     expect((await patch(m, `/users/${bUser.id}/status`, { status: 'SUSPENDED' })).status).toBe(404);
+    // A user who also holds a tenant-wide role is outside the District A manager's authority.
+    const mixed = await newUser();
+    for (const scope of [
+      { scopeType: 'JURISDICTION', scopeId: ids['CD-A1'] },
+      { scopeType: 'TENANT' },
+    ])
+      await post(admin, `/users/${mixed.id}/role-scopes`, {
+        roleId: viewerRole.body.id,
+        ...scope,
+      }).expect(201);
+    const after = (await m.agent.get('/api/v1/users')).body.map((x: { email: string }) => x.email);
+    expect(after).not.toContain(mixed.email);
+    expect((await patch(m, `/users/${mixed.id}/status`, { status: 'SUSPENDED' })).status).toBe(404);
   });
 
   it('suspending a user through the API revokes their sessions; admins cannot suspend themselves', async () => {

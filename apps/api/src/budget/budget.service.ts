@@ -40,6 +40,30 @@ const selfApproval = () =>
  * immediate level only, so parent and leaf amounts are never double counted.
  * DRAFT rows are pending maker-checker approval and reserve balance.
  */
+/** One reporting period per calendar month, clipped to the year; due on the 10th of the next month (IST). */
+export function monthlyPeriods(start: Date, end: Date) {
+  const out: { code: string; startDate: Date; endDate: Date; submissionDueAt: Date }[] = [];
+  let y = start.getUTCFullYear();
+  let m = start.getUTCMonth();
+  for (;;) {
+    const monthStart = new Date(Date.UTC(y, m, 1));
+    if (monthStart > end) break;
+    const monthEnd = new Date(Date.UTC(y, m + 1, 0));
+    out.push({
+      code: `${y}-${String(m + 1).padStart(2, '0')}`,
+      startDate: monthStart < start ? start : monthStart,
+      endDate: monthEnd > end ? end : monthEnd,
+      submissionDueAt: new Date(Date.UTC(y, m + 1, 10, 12, 30)),
+    });
+    m += 1;
+    if (m === 12) {
+      m = 0;
+      y += 1;
+    }
+  }
+  return out;
+}
+
 @Injectable()
 export class BudgetService {
   constructor(
@@ -58,6 +82,29 @@ export class BudgetService {
       select: { ancestry: true },
     });
     return !!j?.ancestry.includes(ancestorId);
+  }
+
+  /** Whether a revision target (ceiling, scheme budget or allocation) lies inside the scope. */
+  private async revisionTargetInScope(
+    tx: Prisma.TransactionClient,
+    f: ScopeFilter,
+    t: { budgetVersionId: string | null; allocationId: string | null },
+  ) {
+    if (t.allocationId) {
+      const a = await tx.budgetAllocation.findUnique({
+        where: { id: t.allocationId },
+        select: { recipientJurisdictionId: true },
+      });
+      return !!a && this.authz.jurisdictionInScope(f, a.recipientJurisdictionId);
+    }
+    if (!t.budgetVersionId) return false;
+    const v = await tx.budgetVersion.findUnique({
+      where: { id: t.budgetVersionId },
+      include: { scheme: { select: { id: true, jurisdictionId: true, agencyId: true } } },
+    });
+    if (!v) return false;
+    if (v.scheme) return this.authz.schemeInScope(f, v.scheme);
+    return !!v.jurisdictionId && this.authz.jurisdictionInScope(f, v.jurisdictionId);
   }
 
   /** Approved and pending (DRAFT) amounts directly under a ceiling or parent allocation. */
@@ -99,14 +146,31 @@ export class BudgetService {
         });
       if (await tx.financialYear.findFirst({ where: { code: dto.code } }))
         throw conflict('FINANCIAL_YEAR_EXISTS', `Financial year ${dto.code} already exists.`);
+      const overlap = await tx.financialYear.findFirst({
+        where: { startDate: { lte: end }, endDate: { gte: start } },
+      });
+      if (overlap)
+        throw conflict(
+          'FINANCIAL_YEAR_OVERLAP',
+          `The dates overlap financial year ${overlap.code}.`,
+        );
       const fy = await tx.financialYear.create({
         data: { tenantId: auth.tenantId, code: dto.code, startDate: start, endDate: end },
+      });
+      const periods = monthlyPeriods(start, end);
+      await tx.reportingPeriod.createMany({
+        data: periods.map((p) => ({
+          ...p,
+          tenantId: auth.tenantId,
+          financialYearId: fy.id,
+          createdBy: auth.userId,
+        })),
       });
       await audit(tx, auth, requestId, {
         action: 'FINANCIAL_YEAR_CREATED',
         entityType: 'financial_year',
         entityId: fy.id,
-        after: fy,
+        after: { ...fy, reportingPeriods: periods.map((p) => p.code) },
       });
       return fy;
     });
@@ -116,7 +180,7 @@ export class BudgetService {
     return this.run(auth, (tx) =>
       tx.reportingPeriod.findMany({
         orderBy: { startDate: 'asc' },
-        select: { id: true, code: true, startDate: true, endDate: true },
+        select: { id: true, code: true, financialYearId: true, startDate: true, endDate: true },
       }),
     );
   }
@@ -385,6 +449,15 @@ export class BudgetService {
         if (dto.schemeId) {
           const s = await tx.scheme.findUnique({ where: { id: dto.schemeId } });
           if (!s) throw badRequest('INVALID_REFERENCE', 'Scheme not found.');
+          const bv = await tx.budgetVersion.findUniqueOrThrow({
+            where: { id: dto.budgetVersionId },
+            select: { financialYearId: true },
+          });
+          if (s.financialYearId !== bv.financialYearId)
+            throw badRequest(
+              'FINANCIAL_YEAR_MISMATCH',
+              'The scheme belongs to a different financial year than this budget.',
+            );
           if (!['APPROVED', 'ACTIVE'].includes(s.status))
             throw conflict(
               'SCHEME_NOT_APPROVED',
@@ -522,9 +595,19 @@ export class BudgetService {
 
   listRevisions(auth: AuthContext, status?: string) {
     return this.run(auth, async (tx) => {
-      await this.authz.requireScope(tx, auth.userId, 'budget.revise');
+      const f = await this.authz.requireScope(tx, auth.userId, 'budget.revise');
+      const inJurisdictions = { in: [...f.jurisdictionIds] };
       const rows = await tx.budgetRevision.findMany({
-        where: { status },
+        where: f.all
+          ? { status }
+          : {
+              status,
+              OR: [
+                { allocation: { recipientJurisdictionId: inJurisdictions } },
+                { budgetVersion: { schemeId: null, jurisdictionId: inJurisdictions } },
+                { budgetVersion: { scheme: this.authz.schemeWhere(f) } },
+              ],
+            },
         orderBy: { createdAt: 'desc' },
         take: 200,
       });
@@ -545,7 +628,13 @@ export class BudgetService {
         let previous: Prisma.Decimal;
         if (dto.targetType === 'BUDGET_VERSION') {
           const v = await tx.budgetVersion.findUnique({ where: { id: dto.targetId } });
-          if (!v || (v.jurisdictionId && !this.authz.jurisdictionInScope(f, v.jurisdictionId)))
+          if (
+            !v ||
+            !(await this.revisionTargetInScope(tx, f, {
+              budgetVersionId: v.id,
+              allocationId: null,
+            }))
+          )
             throw notFound('Budget version');
           if (v.status !== 'APPROVED')
             throw conflict('INVALID_STATE', 'Only approved budgets can be revised.');
@@ -602,9 +691,9 @@ export class BudgetService {
   ) {
     return this.run(auth, (tx) =>
       idempotent(tx, auth, key, `POST /budget/revisions/${id}/decision`, dto, async () => {
-        await this.authz.requireScope(tx, auth.userId, 'budget.revise');
+        const f = await this.authz.requireScope(tx, auth.userId, 'budget.revise');
         const r = await tx.budgetRevision.findUnique({ where: { id } });
-        if (!r) throw notFound('Revision');
+        if (!r || !(await this.revisionTargetInScope(tx, f, r))) throw notFound('Revision');
         if (r.status !== 'PENDING') throw conflict('INVALID_STATE', `Revision is ${r.status}.`);
         if (r.requestedById === auth.userId) throw selfApproval();
         if (dto.decision === 'APPROVE') {
@@ -726,6 +815,11 @@ export class BudgetService {
         if (!s || !this.authz.schemeInScope(f, s)) throw notFound('Scheme');
         const period = await tx.reportingPeriod.findUnique({ where: { id: dto.periodId } });
         if (!period) throw badRequest('INVALID_REFERENCE', 'Reporting period not found.');
+        if (period.financialYearId !== s.financialYearId)
+          throw badRequest(
+            'FINANCIAL_YEAR_MISMATCH',
+            "The reporting period is not in the scheme's financial year.",
+          );
         const amount = money(dto.amount);
         if (amount.lte(0)) throw badRequest('INVALID_AMOUNT', 'Amount must be greater than zero.');
         const r = await tx.budgetRequest.create({

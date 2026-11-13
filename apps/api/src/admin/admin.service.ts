@@ -222,6 +222,13 @@ export class AdminService {
                   scopeType: 'JURISDICTION',
                   scopeId: { in: [...f.jurisdictionIds] },
                 },
+                none: {
+                  ...active,
+                  OR: [
+                    { scopeType: { not: 'JURISDICTION' } },
+                    { scopeId: { notIn: [...f.jurisdictionIds] } },
+                  ],
+                },
               },
             },
         orderBy: { email: 'asc' },
@@ -255,14 +262,15 @@ export class AdminService {
     const user = await tx.user.findUnique({ where: { id: userId }, include: { roleScopes: true } });
     if (!user) throw notFound('User');
     if (!f.all) {
-      // Scoped managers see users assigned inside their jurisdictions, plus users with no active assignment.
+      // Scoped managers manage users whose every active assignment is inside their jurisdictions,
+      // plus users with no active assignment.
       const now = new Date();
       const active = user.roleScopes.filter(
         (s) => s.validFrom <= now && (!s.validTo || s.validTo > now),
       );
       const visible =
         active.length === 0 ||
-        active.some((s) => s.scopeType === 'JURISDICTION' && f.jurisdictionIds.has(s.scopeId));
+        active.every((s) => s.scopeType === 'JURISDICTION' && f.jurisdictionIds.has(s.scopeId));
       if (!visible) throw notFound('User');
     }
     return { f, user };
