@@ -50,6 +50,12 @@ export class DashboardsController {
     return this.dashboards.schemes(a, q);
   }
 
+  @Get('filter-options')
+  @RequirePermissions('report.view')
+  filterOptions(@CurrentAuth() a: AuthContext) {
+    return this.dashboards.filterOptions(a);
+  }
+
   @Get('kpi-definitions')
   @RequirePermissions('report.view')
   definitions() {

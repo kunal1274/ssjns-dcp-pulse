@@ -11,6 +11,7 @@ import {
   SetPasswordPage,
 } from './pages/AuthPages';
 import { BudgetPage } from './pages/BudgetPage';
+import { DashboardPage, Scheme360Page } from './pages/DashboardPages';
 import { FinancePage, ProgressPage, VerificationQueuePage } from './pages/FinancePages';
 import { SchemeCreatePage, SchemeDetailPage, SchemeListPage } from './pages/SchemesPages';
 import { StatusPage } from './StatusPage';
@@ -57,6 +58,12 @@ export function AppRoutes() {
         <Route path="schemes/new" element={perm(['scheme.create'], <SchemeCreatePage />)} />
         <Route path="schemes/:id" element={perm(['scheme.view'], <SchemeDetailPage />)} />
         <Route path="budget" element={perm(['scheme.view', 'budget.allocate'], <BudgetPage />)} />
+        <Route path="dashboards" element={perm(['report.view'], <DashboardPage />)} />
+        <Route
+          path="dashboards/jurisdiction/:id"
+          element={perm(['report.view'], <DashboardPage />)}
+        />
+        <Route path="dashboards/scheme/:id" element={perm(['report.view'], <Scheme360Page />)} />
         <Route path="admin/users" element={perm(['user.manage'], <UsersPage />)} />
         <Route path="admin/roles" element={perm(['role.manage'], <RolesPage />)} />
       </Route>

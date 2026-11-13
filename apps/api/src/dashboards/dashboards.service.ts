@@ -441,6 +441,22 @@ export class DashboardsService {
     });
   }
 
+  filterOptions(auth: AuthContext) {
+    return this.run(auth, async (tx) => {
+      const scope = await this.authz.requireScope(tx, auth.userId, 'report.view');
+      const rows = await tx.scheme.findMany({
+        where: this.authz.schemeWhere(scope),
+        select: { category: true, department: true },
+        distinct: ['category', 'department'],
+      });
+      const uniq = (v: (string | null)[]) => [...new Set(v.filter((x): x is string => !!x))].sort();
+      return {
+        categories: uniq(rows.map((r) => r.category)),
+        departments: uniq(rows.map((r) => r.department)),
+      };
+    });
+  }
+
   kpiDefinitions() {
     return { items: KPI_DEFINITIONS };
   }
