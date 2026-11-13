@@ -77,7 +77,8 @@ jobs:
 
   e2e:
     name: Playwright journeys (Docker stack)
-    runs-on: ubuntu-latest
+    # Playwright has no Chromium build for ubuntu-latest (26.04) yet.
+    runs-on: ubuntu-24.04
     env:
       # Throwaway values for the ephemeral CI stack only.
       SEED_DEMO_PASSWORD: ci-seed-password-only
