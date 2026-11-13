@@ -1,4 +1,4 @@
-import { UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, UnprocessableEntityException } from '@nestjs/common';
 
 const RULES = [
   'ALLOCATION_CEILING_EXCEEDED',
@@ -18,7 +18,17 @@ export function mapDbError(e: unknown): never {
       error: rule,
       message: 'The database rejected this change: ' + rule,
     });
-  if (/_no_self_(approval|review|decision)/.test(msg))
+  if (msg.includes('VERIFIED_RECORD_IMMUTABLE'))
+    throw new UnprocessableEntityException({
+      error: 'VERIFIED_RECORD_IMMUTABLE',
+      message: 'Verified records cannot change; record a correction instead.',
+    });
+  if (/_one_correction/.test(msg))
+    throw new ConflictException({
+      error: 'CORRECTION_EXISTS',
+      message: 'This record already has a correction in progress or verified.',
+    });
+  if (/_no_self_(approval|review|decision)|_maker_checker/.test(msg))
     throw new UnprocessableEntityException({
       error: 'SELF_APPROVAL_FORBIDDEN',
       message: 'You cannot approve your own submission.',
