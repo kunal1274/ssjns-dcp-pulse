@@ -10,3 +10,5 @@ apps/web/.env.local
 .DS_Store
 .vite/
 apps/api/var/
+playwright-report/
+test-results/
