@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import type { AuthContext } from '../auth/auth-context';
 import { AuthorizationService, notFound, type ScopeFilter } from '../authz/authorization.service';
 import { mapDbError } from '../common/db-errors';
@@ -18,6 +18,15 @@ import type {
 } from './dto';
 import { effectiveVerified, percent } from './calculations';
 import { history, recordStep, selfDecision } from './workflow';
+
+const correctionExists = () =>
+  conflict('CORRECTION_EXISTS', 'This record already has a correction in progress or verified.');
+/** The partial unique index *_one_correction backs the pre-check under concurrent writes. */
+const onDuplicateCorrection = (e: unknown): never => {
+  if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')
+    throw correctionExists();
+  throw e;
+};
 
 const FUNDABLE = ['APPROVED', 'ACTIVE', 'SUSPENDED', 'COMPLETED'];
 const schemeSelect = { id: true, schemeCode: true, name: true } as const;
@@ -144,20 +153,26 @@ export class FinanceService {
             'INVALID_STATE',
             'Only verified releases are corrected; edit or reject pending ones.',
           );
-        const r = await tx.fundRelease.create({
-          data: {
-            tenantId: auth.tenantId,
-            schemeId: o.schemeId,
-            amount: this.positive(dto.amount),
-            releaseDate: o.releaseDate,
-            reference: dto.reference ?? `${o.reference}-CORR`,
-            sourceSystem: 'MANUAL_CORRECTION',
-            supersedesId: o.id,
-            correctionReason: dto.reason,
-            createdBy: auth.userId,
-          },
-          include: { scheme: { select: schemeSelect } },
+        const live = await tx.fundRelease.count({
+          where: { supersedesId: o.id, verificationStatus: { not: 'REJECTED' } },
         });
+        if (live) throw correctionExists();
+        const r = await tx.fundRelease
+          .create({
+            data: {
+              tenantId: auth.tenantId,
+              schemeId: o.schemeId,
+              amount: this.positive(dto.amount),
+              releaseDate: o.releaseDate,
+              reference: dto.reference ?? `${o.reference}-CORR`,
+              sourceSystem: 'MANUAL_CORRECTION',
+              supersedesId: o.id,
+              correctionReason: dto.reason,
+              createdBy: auth.userId,
+            },
+            include: { scheme: { select: schemeSelect } },
+          })
+          .catch(onDuplicateCorrection);
         await recordStep(
           tx,
           auth,
@@ -452,24 +467,30 @@ export class FinanceService {
             'INVALID_STATE',
             'Only verified expenditure is corrected; returned records are resubmitted.',
           );
-        const e = await tx.expenditureRecord.create({
-          data: {
-            tenantId: auth.tenantId,
-            schemeId: o.schemeId,
-            periodId: o.periodId,
-            progressSubmissionId: o.progressSubmissionId,
-            amount: this.positive(dto.amount),
-            expenditureDate: o.expenditureDate,
-            reference: dto.reference ?? `${o.reference}-CORR`,
-            status: 'SUBMITTED',
-            source: 'MANUAL_CORRECTION',
-            submittedById: auth.userId,
-            supersedesId: o.id,
-            correctionReason: dto.reason,
-            createdBy: auth.userId,
-          },
-          include: this.expInclude,
+        const live = await tx.expenditureRecord.count({
+          where: { supersedesId: o.id, status: { not: 'REJECTED' } },
         });
+        if (live) throw correctionExists();
+        const e = await tx.expenditureRecord
+          .create({
+            data: {
+              tenantId: auth.tenantId,
+              schemeId: o.schemeId,
+              periodId: o.periodId,
+              progressSubmissionId: o.progressSubmissionId,
+              amount: this.positive(dto.amount),
+              expenditureDate: o.expenditureDate,
+              reference: dto.reference ?? `${o.reference}-CORR`,
+              status: 'SUBMITTED',
+              source: 'MANUAL_CORRECTION',
+              submittedById: auth.userId,
+              supersedesId: o.id,
+              correctionReason: dto.reason,
+              createdBy: auth.userId,
+            },
+            include: this.expInclude,
+          })
+          .catch(onDuplicateCorrection);
         await recordStep(
           tx,
           auth,
