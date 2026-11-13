@@ -444,6 +444,30 @@ describe('F07–F09 releases, expenditure, progress and maker-checker (e2e, real
     ).toBe(false);
   });
 
+  it('F07 commitments: idempotent record → counted as open → stale cancel 409 → cancel → not counted', async () => {
+    const open = async () =>
+      Number((await get(finance, `/schemes/${schemeA}/finance`)).body.openCommitments);
+    const before = await open();
+    const idem = key();
+    const body = { schemeId: schemeA, amount: '7500.50', reference: `COM-${Date.now()}` };
+    const c = await post(finance, '/commitments', body, idem).expect(201);
+    const retry = await post(finance, '/commitments', body, idem).expect(201);
+    expect(retry.body.id).toBe(c.body.id);
+    expect(await open()).toBeCloseTo(before + 7500.5, 2);
+    await post(officer, '/commitments', { ...body, reference: `COM-X-${Date.now()}` }).expect(403);
+    await post(finance, `/commitments/${c.body.id}/cancel`, { version: c.body.version + 1 }).expect(
+      409,
+    );
+    await post(finance, `/commitments/${c.body.id}/cancel`, { version: c.body.version }).expect(
+      201,
+    );
+    expect(await open()).toBeCloseTo(before, 2);
+    expect(
+      (await post(finance, `/commitments/${c.body.id}/cancel`, { version: c.body.version + 1 }))
+        .body.error,
+    ).toBe('INVALID_STATE');
+  });
+
   it('T10 seeded DEMO-001: 55% budget utilisation, 40% physical completion', async () => {
     const id = (await owner.query(`SELECT id FROM schemes WHERE scheme_code = 'DEMO-001'`)).rows[0]
       .id;

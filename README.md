@@ -94,7 +94,7 @@ See [docs/data-layer.md](docs/data-layer.md) for financial rules and seed conten
 
 ## Demo users
 
-The seed creates 9 users at `*@example.test` (one per role template, plus a second state planner, `budget.checker`, for maker-checker approvals). Their password is
+The seed creates 10 users at `*@example.test` (one per role template, plus a second state planner, `budget.checker`, and a second finance reviewer, `finance.checker`, for maker-checker approvals). Their password is
 whatever you set in `SEED_DEMO_PASSWORD`; it is never committed or logged. Re-running the
 seed on an existing tenant only adds demo users that are missing.
 

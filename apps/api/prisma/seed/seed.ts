@@ -255,6 +255,8 @@ async function seedTenant(tx: Tx, passwordHash: string): Promise<void> {
           reference: `SYN-REL-${s.code}-${i + 1}`,
           sourceSystem: 'MANUAL_DEMO',
           verificationStatus: 'VERIFIED',
+          verifiedById: planner,
+          verifiedAt: ts('2026-10-20T10:00:00+05:30'),
           createdBy: financeReviewer,
         },
       });
@@ -407,7 +409,14 @@ async function seedTenant(tx: Tx, passwordHash: string): Promise<void> {
     if (sub.status !== 'SUBMITTED') {
       await tx.progressSubmission.update({
         where: { id: submission.id },
-        data: { status: sub.status },
+        data: {
+          status: sub.status,
+          ...(sub.status === 'VERIFIED' && {
+            verifiedById: districtReviewer,
+            verifiedAt: ts('2026-11-08T10:00:00+05:30'),
+          }),
+          ...(sub.status === 'RETURNED' && { decisionReason: sub.remarks }),
+        },
       });
     }
 
