@@ -255,6 +255,13 @@ describe('F06 scheme registry, budget ceilings and allocations (e2e, real databa
     expect(periods).toHaveLength(12);
     expect(periods[0].code).toBe(`${y}-04`);
     expect(periods[11].code).toBe(`${y + 1}-03`);
+    const misaligned = await post(planner, '/budget/financial-years', {
+      code: `${code}M`.slice(0, 20),
+      startDate: `${y + 3}-04-16`,
+      endDate: `${y + 4}-04-15`,
+    });
+    expect(misaligned.status).toBe(400);
+    expect(misaligned.body.error).toBe('FINANCIAL_YEAR_NOT_MONTH_ALIGNED');
     await post(planner, '/budget/financial-years', {
       code: `${code}X`.slice(0, 20),
       startDate: `${y + 5}-04-01`,

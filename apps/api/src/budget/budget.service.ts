@@ -137,6 +137,13 @@ export class BudgetService {
     const end = new Date(dto.endDate);
     if (!(end > start))
       throw badRequest('INVALID_DATE_RANGE', 'The end date must be after the start date.');
+    const monthStart = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1);
+    const monthEnd = Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0);
+    if (start.getTime() !== monthStart || end.getTime() !== monthEnd)
+      throw badRequest(
+        'FINANCIAL_YEAR_NOT_MONTH_ALIGNED',
+        'A financial year must start on the first day of a month and end on the last day of a month.',
+      );
     return this.run(auth, async (tx) => {
       const f = await this.authz.requireScope(tx, auth.userId, 'budget.allocate');
       if (!f.all)

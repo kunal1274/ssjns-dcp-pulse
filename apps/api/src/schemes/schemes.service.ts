@@ -3,8 +3,9 @@ import type { Prisma, SchemeStatus } from '@prisma/client';
 import type { AuthContext } from '../auth/auth-context';
 import { AuthorizationService, forbidden, notFound } from '../authz/authorization.service';
 import { audit, badRequest, conflict, versionConflict } from '../common/http';
-import { fmt, money, sum } from '../common/money';
+import { fmt, money } from '../common/money';
 import { PrismaService } from '../prisma/prisma.service';
+import { schemeAllocatedTotal } from './totals';
 import type {
   CreateSchemeDto,
   SchemeDecisionDto,
@@ -34,12 +35,6 @@ const include = {
 } satisfies Prisma.SchemeInclude;
 type Row = Prisma.SchemeGetPayload<{ include: typeof include }>;
 
-/** Sums only the lowest approved allocations, so a parent and its child for the same scheme count once. */
-const leafTotal = (rows: Row['budgetAllocations']) => {
-  const parents = new Set(rows.map((a) => a.parentAllocationId));
-  return sum(rows.filter((a) => !parents.has(a.id)).map((a) => a.amount));
-};
-
 const view = (s: Row) => {
   const approved = s.budgetVersions.find((v) => v.status === 'APPROVED');
   const proposed = s.budgetVersions.find((v) => v.status === 'DRAFT');
@@ -60,7 +55,7 @@ const view = (s: Row) => {
     agency: s.agency,
     approvedBudget: approved ? fmt(approved.totalAmount) : null,
     proposedBudget: proposed ? fmt(proposed.totalAmount) : null,
-    allocatedAmount: fmt(leafTotal(s.budgetAllocations)),
+    allocatedAmount: fmt(schemeAllocatedTotal(s.budgetAllocations)),
     createdBy: s.createdBy,
     submittedBy: s.submittedById,
     submittedAt: s.submittedAt,
