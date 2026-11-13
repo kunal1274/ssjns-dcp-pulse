@@ -102,3 +102,91 @@ export interface FundingRequest {
   submittedById: string | null;
   version: number;
 }
+
+export interface SchemeRef {
+  id: string;
+  schemeCode: string;
+  name: string;
+}
+
+export interface FundRelease {
+  id: string;
+  scheme: SchemeRef;
+  amount: string;
+  releaseDate: string;
+  reference: string;
+  verificationStatus: string;
+  supersedesId: string | null;
+  correctionReason: string | null;
+  decisionReason: string | null;
+  createdBy: string;
+  version: number;
+}
+
+export interface ExpenditureRecord {
+  id: string;
+  scheme: SchemeRef;
+  period: { id: string; code: string };
+  amount: string;
+  expenditureDate: string;
+  reference: string;
+  status: string;
+  supersedesId: string | null;
+  correctionReason: string | null;
+  decisionReason: string | null;
+  submittedById: string | null;
+  version: number;
+}
+
+export interface SchemeFinance {
+  approvedBudget: string | null;
+  verifiedReleases: string;
+  pendingReleases: string;
+  verifiedExpenditure: string;
+  reportedUnverifiedExpenditure: string;
+  openCommitments: string;
+  budgetBalance: string | null;
+  releaseBalance: string;
+  budgetUtilisationPercent: string | null;
+  releaseUtilisationPercent: string | null;
+  basis: string;
+}
+
+export interface SchemeProgress {
+  physicalCompletionPercent: string | null;
+  lastVerifiedPeriod: string | null;
+  basis: string;
+  milestones: {
+    id: string;
+    name: string;
+    unit: string;
+    weight: string;
+    targetQuantity: string;
+    verifiedQuantity: string | null;
+  }[];
+}
+
+export interface ProgressSubmission {
+  id: string;
+  period: { id: string; code: string };
+  submissionVersion: number;
+  status: string;
+  remarks: string | null;
+  decisionReason: string | null;
+  createdBy: string;
+  version: number;
+  measurements: { milestoneId: string; quantityCompleted: string; milestone: { name: string } }[];
+}
+
+export interface QueueItem {
+  kind: 'FUND_RELEASE' | 'EXPENDITURE' | 'PROGRESS';
+  id: string;
+  scheme: SchemeRef;
+  status: string;
+  amount?: string;
+  reference?: string;
+  period?: string;
+  isCorrection: boolean;
+  correctionReason?: string | null;
+  version: number;
+}

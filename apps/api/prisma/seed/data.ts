@@ -91,6 +91,13 @@ export const DEMO_USERS = [
     scopes: [{ type: 'TENANT' }],
   },
   {
+    // Second finance reviewer so release verification can be demonstrated under maker-checker.
+    email: 'finance.checker@example.test',
+    name: 'Demo Finance Checker',
+    role: 'FINANCE_REVIEWER',
+    scopes: [{ type: 'TENANT' }],
+  },
+  {
     email: 'district.reviewer@example.test',
     name: 'Demo District Reviewer (District A)',
     role: 'DISTRICT_REVIEWER',

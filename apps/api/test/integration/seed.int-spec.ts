@@ -36,7 +36,7 @@ describe('synthetic ASSAM-DEMO seed', () => {
     expect(rows.find((r) => r.code === 'CD-A1')?.depth).toBe(2);
   });
 
-  it('has 3 implementing agencies, 12 schemes across 3 categories, FY 2026-27 and 9 users', async () => {
+  it('has 3 implementing agencies, 12 schemes across 3 categories, FY 2026-27 and 10 users', async () => {
     expect(
       await count(
         `SELECT count(*) n FROM agencies WHERE tenant_id = $1 AND agency_type = 'IMPLEMENTING'`,
@@ -70,7 +70,7 @@ describe('synthetic ASSAM-DEMO seed', () => {
       await count(`SELECT count(*) n FROM users WHERE tenant_id = $1 AND created_by IS NULL`, [
         tenantId,
       ]),
-    ).toBe(9);
+    ).toBe(10);
   });
 
   it('stores only Argon2id hashes for demo users with example.test emails', async () => {
@@ -80,7 +80,7 @@ describe('synthetic ASSAM-DEMO seed', () => {
         [tenantId],
       )
     ).rows;
-    expect(rows).toHaveLength(9);
+    expect(rows).toHaveLength(10);
     for (const r of rows) {
       expect(r.email).toMatch(/@example\.test$/);
       expect(r.password_hash).toMatch(/^\$argon2id\$v=19\$/);
@@ -99,7 +99,7 @@ describe('synthetic ASSAM-DEMO seed', () => {
   it('has 3 pending, 1 returned and 2 verified progress submissions', async () => {
     const rows = (
       await db.query(
-        `SELECT status::text, count(*)::int n FROM progress_submissions WHERE tenant_id = $1 GROUP BY status`,
+        `SELECT status::text, count(*)::int n FROM progress_submissions WHERE tenant_id = $1 AND remarks LIKE '%(synthetic).' GROUP BY status`,
         [tenantId],
       )
     ).rows;

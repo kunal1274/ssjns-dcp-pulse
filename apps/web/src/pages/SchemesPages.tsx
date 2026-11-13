@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { SchemeMonitoringPanel } from './FinancePages';
 import { useAuth } from '../auth/AuthContext';
 import { Button, Card, ErrorBox, Field, Input, Select, StatusPill, Table } from '../components/ui';
 import { api, errorText, inr } from '../lib/http';
@@ -373,6 +374,9 @@ export function SchemeDetailPage() {
           </>
         )}
       </div>
+      {['APPROVED', 'ACTIVE', 'SUSPENDED', 'COMPLETED', 'CLOSED'].includes(s.status) && (
+        <SchemeMonitoringPanel schemeId={s.id} />
+      )}
     </Card>
   );
 }

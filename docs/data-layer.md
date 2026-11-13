@@ -28,7 +28,7 @@ Reference date `2026-11-11`, FY `2026-27`, all amounts INR.
 - Jurisdictions: Assam (synthetic demo state) → District A/B → Co-districts A1, A2, B1, B2
 - Agencies: 3 implementing (roads, water, facilities) + 1 planning cell
 - 12 schemes `DEMO-001`…`DEMO-012` (4 road, 4 water, 4 public facility)
-- 9 users (one per role template plus a second state planner for maker-checker), with tenant- or jurisdiction-scoped role assignments
+- 10 users (one per role template plus a second state planner and a second finance reviewer for maker-checker), with tenant- or jurisdiction-scoped role assignments
 - 2 overdue milestones, 3 pending submissions, 1 returned, 2 verified
 - 3 alerts from illustrative rules; deliberate variances (e.g. `DEMO-005` verified
   expenditure exceeds verified releases; `DEMO-007` low release vs budget)

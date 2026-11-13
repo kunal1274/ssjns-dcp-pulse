@@ -380,6 +380,8 @@ model User {
   submittedExpenditure    ExpenditureRecord[]   @relation("ExpenditureSubmittedBy")
   verifiedExpenditure     ExpenditureRecord[]   @relation("ExpenditureVerifiedBy")
   progressSubmissions     ProgressSubmission[]  @relation("ProgressSubmittedBy")
+  verifiedProgress        ProgressSubmission[]  @relation("ProgressVerifiedBy")
+  verifiedReleases        FundRelease[]         @relation("FundReleaseVerifiedBy")
   uploadedEvidence        EvidenceFile[]        @relation("EvidenceUploadedBy")
   approvalDecisions       ApprovalDecision[]
   assignedAlerts          Alert[]               @relation("AlertAssignee")
@@ -761,6 +763,9 @@ model FundRelease {
   reference          String             @db.VarChar(200)
   sourceSystem       String             @map("source_system") @db.VarChar(50)
   verificationStatus VerificationStatus @default(PENDING) @map("verification_status")
+  verifiedById       String?            @map("verified_by") @db.Uuid
+  verifiedAt         DateTime?          @map("verified_at") @db.Timestamptz(6)
+  decisionReason     String?            @map("decision_reason")
   /// Correction chain: a correction is a new record that supersedes a verified one.
   supersedesId       String?            @map("supersedes_id") @db.Uuid
   correctionReason   String?            @map("correction_reason")
@@ -773,6 +778,7 @@ model FundRelease {
   scheme       Scheme        @relation(fields: [tenantId, schemeId], references: [tenantId, id])
   supersedes   FundRelease?  @relation("FundReleaseCorrection", fields: [tenantId, supersedesId], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
   supersededBy FundRelease[] @relation("FundReleaseCorrection")
+  verifiedBy   User?         @relation("FundReleaseVerifiedBy", fields: [tenantId, verifiedById], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
 
   @@unique([tenantId, id])
   @@index([tenantId, schemeId])
@@ -815,6 +821,7 @@ model ExpenditureRecord {
   submittedById        String?           @map("submitted_by") @db.Uuid
   verifiedById         String?           @map("verified_by") @db.Uuid
   verifiedAt           DateTime?         @map("verified_at") @db.Timestamptz(6)
+  decisionReason       String?           @map("decision_reason")
   supersedesId         String?           @map("supersedes_id") @db.Uuid
   correctionReason     String?           @map("correction_reason")
   createdAt            DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -852,6 +859,9 @@ model ProgressSubmission {
   submittedById     String?        @map("submitted_by") @db.Uuid
   submittedAt       DateTime?      @map("submitted_at") @db.Timestamptz(6)
   remarks           String?
+  verifiedById      String?        @map("verified_by") @db.Uuid
+  verifiedAt        DateTime?      @map("verified_at") @db.Timestamptz(6)
+  decisionReason    String?        @map("decision_reason")
   createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdBy         String?        @map("created_by") @db.Uuid
@@ -862,6 +872,7 @@ model ProgressSubmission {
   scheme             Scheme                @relation(fields: [tenantId, schemeId], references: [tenantId, id])
   period             ReportingPeriod       @relation(fields: [tenantId, periodId], references: [tenantId, id])
   submittedBy        User?                 @relation("ProgressSubmittedBy", fields: [tenantId, submittedById], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
+  verifiedBy         User?                 @relation("ProgressVerifiedBy", fields: [tenantId, verifiedById], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
   supersedes         ProgressSubmission?   @relation("ProgressCorrection", fields: [tenantId, supersedesId], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
   supersededBy       ProgressSubmission[]  @relation("ProgressCorrection")
   measurements       ProgressMeasurement[]
