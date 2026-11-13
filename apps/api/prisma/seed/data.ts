@@ -84,6 +84,13 @@ export const DEMO_USERS = [
     scopes: [{ type: 'TENANT' }],
   },
   {
+    // Second planner so budget and scheme approvals can be demonstrated under maker-checker.
+    email: 'budget.checker@example.test',
+    name: 'Demo State Budget Checker',
+    role: 'STATE_PLANNER',
+    scopes: [{ type: 'TENANT' }],
+  },
+  {
     email: 'district.reviewer@example.test',
     name: 'Demo District Reviewer (District A)',
     role: 'DISTRICT_REVIEWER',

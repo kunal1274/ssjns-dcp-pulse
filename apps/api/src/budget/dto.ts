@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsDateString,
   IsIn,
   IsInt,
   IsOptional,
@@ -11,6 +12,12 @@ import {
   Min,
 } from 'class-validator';
 import { MONEY_PATTERN } from '../common/money';
+
+export class CreateFinancialYearDto {
+  @ApiProperty({ example: '2027-28' }) @Matches(/^[A-Za-z0-9-]{4,20}$/) code!: string;
+  @ApiProperty({ example: '2027-04-01' }) @IsDateString() startDate!: string;
+  @ApiProperty({ example: '2028-03-31' }) @IsDateString() endDate!: string;
+}
 
 export class CeilingQuery {
   @ApiPropertyOptional() @IsOptional() @IsUUID() financialYearId?: string;

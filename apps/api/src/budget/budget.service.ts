@@ -1,4 +1,4 @@
-import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnprocessableEntityException } from '@nestjs/common';
 import type { BudgetAllocation, BudgetVersion, Prisma } from '@prisma/client';
 import type { AuthContext } from '../auth/auth-context';
 import {
@@ -13,6 +13,7 @@ import { idempotent } from '../common/idempotency';
 import { fmt, money } from '../common/money';
 import { PrismaService } from '../prisma/prisma.service';
 import type {
+  CreateFinancialYearDto,
   AllocationQuery,
   CancelDto,
   CreateAllocationDto,
@@ -82,6 +83,33 @@ export class BudgetService {
 
   financialYears(auth: AuthContext) {
     return this.run(auth, (tx) => tx.financialYear.findMany({ orderBy: { startDate: 'desc' } }));
+  }
+
+  createFinancialYear(auth: AuthContext, dto: CreateFinancialYearDto, requestId?: string) {
+    const start = new Date(dto.startDate);
+    const end = new Date(dto.endDate);
+    if (!(end > start))
+      throw badRequest('INVALID_DATE_RANGE', 'The end date must be after the start date.');
+    return this.run(auth, async (tx) => {
+      const f = await this.authz.requireScope(tx, auth.userId, 'budget.allocate');
+      if (!f.all)
+        throw new ForbiddenException({
+          error: 'TENANT_SCOPE_REQUIRED',
+          message: 'Financial-year configuration requires tenant-wide budget authority.',
+        });
+      if (await tx.financialYear.findFirst({ where: { code: dto.code } }))
+        throw conflict('FINANCIAL_YEAR_EXISTS', `Financial year ${dto.code} already exists.`);
+      const fy = await tx.financialYear.create({
+        data: { tenantId: auth.tenantId, code: dto.code, startDate: start, endDate: end },
+      });
+      await audit(tx, auth, requestId, {
+        action: 'FINANCIAL_YEAR_CREATED',
+        entityType: 'financial_year',
+        entityId: fy.id,
+        after: fy,
+      });
+      return fy;
+    });
   }
 
   periods(auth: AuthContext) {

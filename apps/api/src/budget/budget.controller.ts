@@ -19,6 +19,7 @@ import {
   CeilingQuery,
   CreateAllocationDto,
   CreateCeilingDto,
+  CreateFinancialYearDto,
   CreateFundingRequestDto,
   CreateRevisionDto,
   DecisionDto,
@@ -43,6 +44,16 @@ export class BudgetController {
   @RequirePermissions(...VIEW)
   financialYears(@CurrentAuth() a: AuthContext) {
     return this.budget.financialYears(a);
+  }
+
+  @Post('financial-years')
+  @RequirePermissions('budget.allocate')
+  createFinancialYear(
+    @CurrentAuth() a: AuthContext,
+    @Body() dto: CreateFinancialYearDto,
+    @Req() req: AuthedRequest,
+  ) {
+    return this.budget.createFinancialYear(a, dto, rid(req));
   }
 
   @Get('periods')

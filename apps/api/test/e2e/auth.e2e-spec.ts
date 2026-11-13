@@ -238,7 +238,7 @@ describe('F04 authentication and sessions (e2e, real database)', () => {
 
   it('expired sessions are rejected', async () => {
     const s = await login(app, 'auditor@example.test');
-    await owner.query(`UPDATE user_sessions SET idle_expires_at = now() - interval '1 second'
+    await owner.query(`UPDATE user_sessions SET idle_expires_at = LEAST(absolute_expires_at, now() - interval '1 second')
       WHERE user_id = (SELECT id FROM users WHERE email = 'auditor@example.test') AND revoked_at IS NULL`);
     expect((await s.agent.get('/api/v1/auth/me')).status).toBe(401);
   });

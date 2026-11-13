@@ -231,6 +231,28 @@ describe('F06 scheme registry, budget ceilings and allocations (e2e, real databa
     expect((await get(auditor, '/schemes')).status).toBe(200);
   });
 
+  it('financial years: tenant-wide planner can configure; scoped or unauthorised users cannot', async () => {
+    const code = `FY${Date.now()}`.slice(0, 20);
+    const body = { code, startDate: '2040-04-01', endDate: '2041-03-31' };
+    const created = await post(planner, '/budget/financial-years', body).expect(201);
+    expect(created.body).toMatchObject({ code, status: 'PLANNED' });
+    expect((await post(planner, '/budget/financial-years', body).expect(409)).body.error).toBe(
+      'FINANCIAL_YEAR_EXISTS',
+    );
+    await post(planner, '/budget/financial-years', {
+      code: `${code}X`.slice(0, 20),
+      startDate: '2041-04-01',
+      endDate: '2041-03-31',
+    }).expect(400);
+    await post(district, '/budget/financial-years', { ...body, code: `${code}D` }).expect(403);
+    await post(auditor, '/budget/financial-years', { ...body, code: `${code}A` }).expect(403);
+    const audit = await owner.query(
+      `SELECT count(*)::int AS n FROM audit_events WHERE action = 'FINANCIAL_YEAR_CREATED' AND entity_id = $1`,
+      [created.body.id],
+    );
+    expect(audit.rows[0].n).toBe(1);
+  });
+
   describe('budget hierarchy', () => {
     let ceiling: { id: string; version: number };
     let distA: { id: string; version: number };
