@@ -16,7 +16,7 @@ import type {
 const MONEY = '^\\d{1,16}(\\.\\d{1,2})?$';
 
 /** One idempotency key per logical write: re-submitting after a network error replays, not duplicates. */
-function useWrite(onDone: () => void) {
+export function useWrite(onDone: () => void) {
   const [key, setKey] = useState(newIdempotencyKey);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

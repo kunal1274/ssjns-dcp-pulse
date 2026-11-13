@@ -11,6 +11,7 @@ import {
   SetPasswordPage,
 } from './pages/AuthPages';
 import { BudgetPage } from './pages/BudgetPage';
+import { FinancePage, ProgressPage, VerificationQueuePage } from './pages/FinancePages';
 import { SchemeCreatePage, SchemeDetailPage, SchemeListPage } from './pages/SchemesPages';
 import { StatusPage } from './StatusPage';
 
@@ -38,6 +39,21 @@ export function AppRoutes() {
         <Route path="profile" element={<ProfilePage />} />
         <Route path="access-denied" element={<AccessDeniedPage />} />
         <Route path="schemes" element={perm(['scheme.view'], <SchemeListPage />)} />
+        <Route
+          path="finance"
+          element={perm(
+            ['release.record', 'expenditure.submit', 'expenditure.verify'],
+            <FinancePage />,
+          )}
+        />
+        <Route
+          path="progress"
+          element={perm(['progress.submit', 'progress.verify'], <ProgressPage />)}
+        />
+        <Route
+          path="verification"
+          element={perm(['expenditure.verify', 'progress.verify'], <VerificationQueuePage />)}
+        />
         <Route path="schemes/new" element={perm(['scheme.create'], <SchemeCreatePage />)} />
         <Route path="schemes/:id" element={perm(['scheme.view'], <SchemeDetailPage />)} />
         <Route path="budget" element={perm(['scheme.view', 'budget.allocate'], <BudgetPage />)} />

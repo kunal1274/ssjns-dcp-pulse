@@ -24,6 +24,21 @@ export function Layout() {
                 Budget
               </NavLink>
             )}
+            {can('release.record', 'expenditure.submit', 'expenditure.verify') && (
+              <NavLink to="/finance" className={link}>
+                Finance
+              </NavLink>
+            )}
+            {can('progress.submit', 'progress.verify') && (
+              <NavLink to="/progress" className={link}>
+                Progress
+              </NavLink>
+            )}
+            {can('expenditure.verify', 'progress.verify') && (
+              <NavLink to="/verification" className={link}>
+                Verification queue
+              </NavLink>
+            )}
             {can('user.manage') && (
               <NavLink to="/admin/users" className={link}>
                 Users
