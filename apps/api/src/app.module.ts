@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 import { loadEnv } from './config/env';
+import { ProgressModule } from './progress/progress.module';
 import { FinanceModule } from './finance/finance.module';
 import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
@@ -17,6 +18,7 @@ import { PrismaModule } from './prisma/prisma.module';
     AdminModule,
     SchemesModule,
     FinanceModule,
+    ProgressModule,
     HealthModule,
   ],
 })
