@@ -56,7 +56,7 @@ export function StatusPage() {
 
       <h1 className="text-2xl font-semibold">DCP Pulse — system status</h1>
       <p className="mt-1 text-sm text-slate-600">
-        Foundation build (F01–F03). Scheme, budget, progress and dashboard features are not
+        Engineering health view. Dashboards, releases, expenditure and progress features are not
         implemented yet.
       </p>
 
