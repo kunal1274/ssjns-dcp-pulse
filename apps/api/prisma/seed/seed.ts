@@ -12,6 +12,7 @@ import {
   AGENCIES,
   AGENCY_JURISDICTIONS,
   ALERT_RULES,
+  INTEGRATION_SOURCES,
   ALERTS,
   RULE_DEDUP_TEMPLATES,
   RULE_DESCRIPTIONS,
@@ -446,6 +447,8 @@ async function seedTenant(tx: Tx, passwordHash: string): Promise<void> {
     }
   }
 
+  await ensureIntegrationSources(tx, tenant.id);
+
   const ruleIds = new Map<string, string>();
   for (const rule of ALERT_RULES) {
     const row = await tx.alertRule.create({
@@ -507,6 +510,29 @@ async function seedTenant(tx: Tx, passwordHash: string): Promise<void> {
   });
 }
 
+/** Creates any missing synthetic import sources; existing ones are left untouched. */
+async function ensureIntegrationSources(tx: Prisma.TransactionClient, tenantId: string) {
+  let added = 0;
+  for (const src of INTEGRATION_SOURCES) {
+    const found = await tx.integrationSource.findFirst({ where: { tenantId, code: src.code } });
+    if (found) continue;
+    await tx.integrationSource.create({
+      data: {
+        tenantId,
+        code: src.code,
+        name: src.name,
+        adapter: src.adapter,
+        entityType: src.entityType,
+        description: src.description,
+        isSynthetic: true,
+        configJson: src.config as unknown as Prisma.InputJsonValue,
+      },
+    });
+    added++;
+  }
+  return added;
+}
+
 /** Creates any demo users that do not exist yet; existing users are left untouched. */
 async function ensureDemoUsers(
   tx: Prisma.TransactionClient,
@@ -566,6 +592,7 @@ async function main(): Promise<void> {
           new Map(roles.map((r) => [r.code, r.id])),
           new Map(js.map((j) => [j.code, j.id])),
         );
+        await ensureIntegrationSources(tx, existing.id);
         return (await tx.user.count({ where: { tenantId: existing.id } })) - before;
       });
       console.info(

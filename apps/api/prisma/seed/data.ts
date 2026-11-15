@@ -523,3 +523,28 @@ export const ALERTS = [
     context: { verifiedExpenditure: lakh(24), verifiedReleases: lakh(20) },
   },
 ] as const;
+
+/** Synthetic import sources. Column names are illustrative; no official e-Rupantor format is assumed. */
+export const INTEGRATION_SOURCES = [
+  {
+    code: 'ERUPANTOR_SYNTHETIC_CSV',
+    name: 'e-Rupantor-style fund releases (synthetic CSV demonstration)',
+    adapter: 'CSV_FUND_RELEASE_V1',
+    entityType: 'fund_release',
+    description:
+      'Controlled CSV import of synthetic fund-release records. Imported releases arrive unverified ' +
+      'and still need finance maker-checker verification. Not a live government integration.',
+    config: {
+      columns: {
+        externalId: 'external_release_id',
+        schemeCode: 'scheme_code',
+        amount: 'amount_inr',
+        releaseDate: 'release_date',
+        reference: 'sanction_reference',
+      },
+      dateFormat: 'YYYY-MM-DD',
+      maxRows: 1000,
+      maxBytes: 1048576,
+    },
+  },
+] as const;

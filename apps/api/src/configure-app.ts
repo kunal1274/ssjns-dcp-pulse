@@ -13,6 +13,8 @@ export function configureApp(app: INestApplication, env: AppEnv): void {
   app.use(cookieParser());
   // One reverse proxy (nginx) in front of the API; needed for per-client rate limits.
   (app as NestExpressApplication).set('trust proxy', 1);
+  // Import previews send CSV text (max 1 MB) inside JSON.
+  (app as NestExpressApplication).useBodyParser('json', { limit: '2mb' });
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
   );
@@ -22,9 +24,7 @@ export function configureApp(app: INestApplication, env: AppEnv): void {
 
   const doc = new DocumentBuilder()
     .setTitle('DCP Pulse API')
-    .setDescription(
-      'Synthetic demonstration only. Health, authentication, RBAC, scheme registry and budget APIs.',
-    )
+    .setDescription('Synthetic demonstration only. Not connected to any government system.')
     .setVersion('0.1.0')
     .addCookieAuth('dcp_session')
     .build();

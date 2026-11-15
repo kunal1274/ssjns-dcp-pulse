@@ -5,6 +5,8 @@ import { ProgressModule } from './progress/progress.module';
 import { FinanceModule } from './finance/finance.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { DashboardsModule } from './dashboards/dashboards.module';
+import { IntegrationModule } from './integration/integration.module';
+import { ReportsModule } from './reports/reports.module';
 import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
 import { SchemesModule } from './schemes/schemes.module';
@@ -23,6 +25,8 @@ import { PrismaModule } from './prisma/prisma.module';
     ProgressModule,
     DashboardsModule,
     AlertsModule,
+    IntegrationModule,
+    ReportsModule,
     HealthModule,
   ],
 })

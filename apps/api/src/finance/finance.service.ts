@@ -28,7 +28,7 @@ const onDuplicateCorrection = (e: unknown): never => {
   throw e;
 };
 
-const FUNDABLE = ['APPROVED', 'ACTIVE', 'SUSPENDED', 'COMPLETED'];
+export const FUNDABLE = ['APPROVED', 'ACTIVE', 'SUSPENDED', 'COMPLETED'];
 const schemeSelect = { id: true, schemeCode: true, name: true } as const;
 
 const releaseView = (
@@ -104,33 +104,58 @@ export class FinanceService {
       idempotent(tx, auth, key, 'POST /fund-releases', dto, async () => {
         const f = await this.authz.requireScope(tx, auth.userId, 'release.record');
         const s = await this.scheme(tx, f, dto.schemeId);
-        if (!FUNDABLE.includes(s.status))
-          throw conflict(
-            'SCHEME_NOT_FUNDABLE',
-            `Funds cannot be released to a ${s.status} scheme.`,
-          );
-        const r = await tx.fundRelease.create({
-          data: {
-            tenantId: auth.tenantId,
-            schemeId: s.id,
-            amount: this.positive(dto.amount),
-            releaseDate: new Date(dto.releaseDate),
-            reference: dto.reference,
-            sourceSystem: 'MANUAL',
-            createdBy: auth.userId,
-          },
-          include: { scheme: { select: schemeSelect } },
+        return this.recordRelease(tx, auth, requestId, {
+          scheme: s,
+          amount: this.positive(dto.amount),
+          releaseDate: new Date(dto.releaseDate),
+          reference: dto.reference,
+          sourceSystem: 'MANUAL',
         });
-        await recordStep(tx, auth, 'fund_release', r.id, 'RECORD', 'RECORDED', 'PENDING');
-        await audit(tx, auth, requestId, {
-          action: 'FUND_RELEASE_RECORDED',
-          entityType: 'fund_release',
-          entityId: r.id,
-          after: releaseView(r),
-        });
-        return releaseView(r);
       }),
     );
+  }
+
+  /**
+   * Records an unverified release inside the caller's transaction. Used by manual entry and by
+   * import adapters, so both follow the same status rule, workflow step and audit trail.
+   */
+  async recordRelease(
+    tx: Prisma.TransactionClient,
+    auth: AuthContext,
+    requestId: string | undefined,
+    r: {
+      scheme: { id: string; status: string };
+      amount: Prisma.Decimal;
+      releaseDate: Date;
+      reference: string;
+      sourceSystem: string;
+    },
+  ) {
+    if (!FUNDABLE.includes(r.scheme.status))
+      throw conflict(
+        'SCHEME_NOT_FUNDABLE',
+        `Funds cannot be released to a ${r.scheme.status} scheme.`,
+      );
+    const row = await tx.fundRelease.create({
+      data: {
+        tenantId: auth.tenantId,
+        schemeId: r.scheme.id,
+        amount: r.amount,
+        releaseDate: r.releaseDate,
+        reference: r.reference,
+        sourceSystem: r.sourceSystem,
+        createdBy: auth.userId,
+      },
+      include: { scheme: { select: schemeSelect } },
+    });
+    await recordStep(tx, auth, 'fund_release', row.id, 'RECORD', 'RECORDED', 'PENDING');
+    await audit(tx, auth, requestId, {
+      action: 'FUND_RELEASE_RECORDED',
+      entityType: 'fund_release',
+      entityId: row.id,
+      after: releaseView(row),
+    });
+    return releaseView(row);
   }
 
   correctRelease(
