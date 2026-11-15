@@ -15,7 +15,8 @@
     "db:drift-check": "tsx scripts/check-migration-drift.ts",
     "db:seed": "tsx prisma/seed/seed.ts",
     "db:reset": "prisma migrate reset --force --skip-seed",
-    "db:demo-reset": "tsx scripts/demo-reset.ts"
+    "db:demo-reset": "tsx scripts/demo-reset.ts",
+    "perf": "tsx scripts/perf-measure.ts"
   },
   "dependencies": {
     "@dcp/shared": "workspace:*",

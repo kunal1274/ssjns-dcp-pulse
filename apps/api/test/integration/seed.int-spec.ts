@@ -178,7 +178,8 @@ describe('synthetic ASSAM-DEMO seed', () => {
   it('places synthetic scheme locations as WGS84 points', async () => {
     expect(
       await count(
-        `SELECT count(*) n FROM scheme_locations WHERE tenant_id = $1 AND ST_GeometryType(geometry::geometry) = 'ST_Point' AND ST_SRID(geometry::geometry) = 4326`,
+        `SELECT count(*) n FROM scheme_locations l JOIN schemes s ON s.id = l.scheme_id
+         WHERE l.tenant_id = $1 AND s.scheme_code LIKE 'DEMO-%' AND ST_GeometryType(l.geometry::geometry) = 'ST_Point' AND ST_SRID(l.geometry::geometry) = 4326`,
         [tenantId],
       ),
     ).toBe(12);

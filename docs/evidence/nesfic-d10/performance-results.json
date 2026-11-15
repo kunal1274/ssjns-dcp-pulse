@@ -1,0 +1,178 @@
+{
+  "measuredAt": "2026-11-15T11:45:20.895Z",
+  "environment": {
+    "node": "v22.23.5",
+    "platform": "Linux 6.8.0-1060-aws",
+    "cpus": "8 × Intel(R) Xeon(R) Processor",
+    "memoryGb": 33.7,
+    "postgres": "PostgreSQL 16.4 (Debian 16.4-1.pgdg110+2) on x86_64-pc-linux-gnu",
+    "baseUrl": "http://localhost:8080/api/v1"
+  },
+  "dataset": {
+    "bulk": "already present",
+    "bulkInsertMs": 76,
+    "counts": {
+      "schemes": 2015,
+      "fund_releases": 2016,
+      "expenditure_records": 2018,
+      "progress_submissions": 1509,
+      "alerts": 9
+    }
+  },
+  "results": {
+    "dashboard_state": {
+      "path": "/dashboards/state",
+      "firstMs": 190.6,
+      "bytes": 5384,
+      "n": 9,
+      "minMs": 130.3,
+      "medianMs": 156.8,
+      "p95Ms": 242,
+      "maxMs": 242
+    },
+    "dashboard_district_A": {
+      "path": "/dashboards/district/86d198d3-43c9-4bd9-8cef-9e264d5221ac",
+      "firstMs": 108.2,
+      "bytes": 4547,
+      "n": 9,
+      "minMs": 89.1,
+      "medianMs": 119.2,
+      "p95Ms": 186.8,
+      "maxMs": 186.8
+    },
+    "scheme_list_page1_100": {
+      "path": "/dashboards/schemes?pageSize=100&page=1",
+      "firstMs": 65.4,
+      "bytes": 86372,
+      "n": 9,
+      "minMs": 49,
+      "medianMs": 66.4,
+      "p95Ms": 95.8,
+      "maxMs": 95.8
+    },
+    "scheme_list_page15_100": {
+      "path": "/dashboards/schemes?pageSize=100&page=15",
+      "firstMs": 70.7,
+      "bytes": 86667,
+      "n": 9,
+      "minMs": 63,
+      "medianMs": 69.3,
+      "p95Ms": 94.1,
+      "maxMs": 94.1
+    },
+    "scheme_list_filtered": {
+      "path": "/dashboards/schemes?pageSize=100&category=WATER&delayedOnly=true",
+      "firstMs": 29,
+      "bytes": 46,
+      "n": 9,
+      "minMs": 19.3,
+      "medianMs": 26,
+      "p95Ms": 31.3,
+      "maxMs": 31.3
+    },
+    "gis_all_points": {
+      "path": "/gis/schemes",
+      "firstMs": 139.2,
+      "bytes": 1110813,
+      "n": 4,
+      "minMs": 88,
+      "medianMs": 90.9,
+      "p95Ms": 97.8,
+      "maxMs": 97.8
+    },
+    "report_preview_budget_vs_exp": {
+      "path": "/reports/budget-vs-expenditure",
+      "firstMs": 114.9,
+      "bytes": 148072,
+      "n": 4,
+      "minMs": 80.3,
+      "medianMs": 97.6,
+      "p95Ms": 121.1,
+      "maxMs": 121.1
+    },
+    "report_export_csv": {
+      "path": "/reports/budget-vs-expenditure/export?format=csv",
+      "firstMs": 122.9,
+      "bytes": 265988,
+      "n": 2,
+      "minMs": 95.4,
+      "medianMs": 95.4,
+      "p95Ms": 165.5,
+      "maxMs": 165.5
+    },
+    "report_export_xlsx": {
+      "path": "/reports/budget-vs-expenditure/export?format=xlsx",
+      "firstMs": 294.6,
+      "bytes": 111528,
+      "n": 2,
+      "minMs": 203.7,
+      "medianMs": 203.7,
+      "p95Ms": 206.9,
+      "maxMs": 206.9
+    },
+    "concurrent_20_dashboard_state": {
+      "wallMs": 564.4,
+      "allOk": true,
+      "identicalBodies": true,
+      "n": 20,
+      "minMs": 205.1,
+      "medianMs": 415.4,
+      "p95Ms": 508.5,
+      "maxMs": 562
+    },
+    "alert_evaluation": {
+      "first": {
+        "status": 201,
+        "ms": 8443.8,
+        "tenantId": "73f2c6ce-cb45-4432-a629-fefaa2decea0",
+        "trigger": "MANUAL",
+        "rulesEvaluated": [
+          "ALLOCATION_EXCEEDED",
+          "APPROVAL_AGED",
+          "DATA_STALE",
+          "EVIDENCE_MISSING",
+          "MILESTONE_LATE",
+          "PHYSICAL_FINANCIAL_GAP",
+          "RELEASE_EXCEEDED",
+          "REPORT_OVERDUE"
+        ],
+        "schemesEvaluated": 2015,
+        "detected": 3595,
+        "created": 3587,
+        "reopened": 0,
+        "autoResolved": 0,
+        "escalated": 0,
+        "evaluatedAt": "2026-11-15T11:45:06.924Z"
+      },
+      "secondDedupCheck": {
+        "status": 201,
+        "ms": 5513.1,
+        "tenantId": "73f2c6ce-cb45-4432-a629-fefaa2decea0",
+        "trigger": "MANUAL",
+        "rulesEvaluated": [
+          "ALLOCATION_EXCEEDED",
+          "APPROVAL_AGED",
+          "DATA_STALE",
+          "EVIDENCE_MISSING",
+          "MILESTONE_LATE",
+          "PHYSICAL_FINANCIAL_GAP",
+          "RELEASE_EXCEEDED",
+          "REPORT_OVERDUE"
+        ],
+        "schemesEvaluated": 2015,
+        "detected": 3595,
+        "created": 0,
+        "reopened": 0,
+        "autoResolved": 0,
+        "escalated": 0,
+        "evaluatedAt": "2026-11-15T11:45:15.360Z"
+      }
+    },
+    "error_handling": {
+      "unknownJurisdiction": 404,
+      "malformedId": 400,
+      "unauthenticated": 401,
+      "errorBodyLeaksSql": false
+    }
+  }
+}

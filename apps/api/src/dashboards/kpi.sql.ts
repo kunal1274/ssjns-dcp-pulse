@@ -32,7 +32,10 @@ function where(f: MetricsFilter): Prisma.Sql {
   ];
   if (f.subtreeOf)
     parts.push(
-      Prisma.sql`(sc.jurisdiction_id = ${f.subtreeOf}::uuid OR ${f.subtreeOf}::uuid = ANY(j.ancestry))`,
+      // Semi-join on the (small) jurisdiction subtree keeps row estimates realistic; an OR on
+      // j.ancestry made the planner expect one scheme and pick nested loops (seconds at 2,000 schemes).
+      Prisma.sql`sc.jurisdiction_id IN (SELECT jx.id FROM jurisdictions jx
+        WHERE jx.id = ${f.subtreeOf}::uuid OR ${f.subtreeOf}::uuid = ANY(jx.ancestry))`,
     );
   if (f.financialYearId) parts.push(Prisma.sql`sc.financial_year_id = ${f.financialYearId}::uuid`);
   if (f.category) parts.push(Prisma.sql`sc.category = ${f.category}`);
