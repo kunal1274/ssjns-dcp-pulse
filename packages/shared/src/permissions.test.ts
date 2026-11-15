@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { PERMISSIONS, ROLE_TEMPLATES } from './permissions';
 
 describe('permission catalogue', () => {
-  it('has the 23 unique permission codes from the specification', () => {
+  it('has the 23 specification permission codes plus alert.rule.manage', () => {
     const codes = PERMISSIONS.map((perm) => perm.code);
-    expect(codes).toHaveLength(23);
+    expect(codes).toHaveLength(24);
     expect(new Set(codes).size).toBe(codes.length);
   });
 
