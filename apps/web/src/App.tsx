@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { RequireAuth, RequirePermission } from './auth/guards';
@@ -10,11 +11,21 @@ import {
   SessionExpiredPage,
   SetPasswordPage,
 } from './pages/AuthPages';
+import {
+  AlertDetailPage,
+  AlertRulesPage,
+  AlertsPage,
+  CorrectiveActionDetailPage,
+  CorrectiveActionsPage,
+} from './pages/AlertPages';
 import { BudgetPage } from './pages/BudgetPage';
 import { DashboardPage, Scheme360Page } from './pages/DashboardPages';
 import { FinancePage, ProgressPage, VerificationQueuePage } from './pages/FinancePages';
 import { SchemeCreatePage, SchemeDetailPage, SchemeListPage } from './pages/SchemesPages';
 import { StatusPage } from './StatusPage';
+
+// MapLibre is large; load it only when the map is opened.
+const GisPage = lazy(() => import('./pages/GisPage').then((m) => ({ default: m.GisPage })));
 
 const perm = (any: string[], el: React.ReactNode) => (
   <RequirePermission any={any}>{el}</RequirePermission>
@@ -64,6 +75,23 @@ export function AppRoutes() {
           element={perm(['report.view'], <DashboardPage />)}
         />
         <Route path="dashboards/scheme/:id" element={perm(['report.view'], <Scheme360Page />)} />
+        <Route
+          path="map"
+          element={perm(
+            ['scheme.view'],
+            <Suspense fallback={<p>Loading map…</p>}>
+              <GisPage />
+            </Suspense>,
+          )}
+        />
+        <Route path="alerts" element={perm(['alert.view'], <AlertsPage />)} />
+        <Route
+          path="alerts/rules"
+          element={perm(['alert.view', 'alert.rule.manage'], <AlertRulesPage />)}
+        />
+        <Route path="alerts/:id" element={perm(['alert.view'], <AlertDetailPage />)} />
+        <Route path="corrective-actions" element={<CorrectiveActionsPage />} />
+        <Route path="corrective-actions/:id" element={<CorrectiveActionDetailPage />} />
         <Route path="admin/users" element={perm(['user.manage'], <UsersPage />)} />
         <Route path="admin/roles" element={perm(['role.manage'], <RolesPage />)} />
       </Route>

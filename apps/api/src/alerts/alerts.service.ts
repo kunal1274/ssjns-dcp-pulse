@@ -315,6 +315,26 @@ export class AlertsService {
     });
   }
 
+  /** Active users who can see the alert's scheme: candidates for assignment or corrective-action ownership. */
+  assignees(auth: AuthContext, id: string) {
+    return this.run(auth, async (tx) => {
+      const scope = await this.authz.requireScope(tx, auth.userId, 'alert.assign');
+      const a = await this.load(tx, scope, id);
+      const scheme = a.schemeId ? await tx.scheme.findUnique({ where: { id: a.schemeId } }) : null;
+      const users = await tx.user.findMany({
+        where: { status: 'ACTIVE' },
+        select: { id: true, name: true, email: true },
+        orderBy: { name: 'asc' },
+      });
+      const out: typeof users = [];
+      for (const u of users) {
+        const s = await this.authz.scopeFor(tx, u.id, 'scheme.view');
+        if (s && (scheme ? this.authz.schemeInScope(s, scheme) : s.all)) out.push(u);
+      }
+      return out;
+    });
+  }
+
   private async transition(
     auth: AuthContext,
     id: string,

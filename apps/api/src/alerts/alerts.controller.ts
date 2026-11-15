@@ -87,6 +87,12 @@ export class AlertsController {
     return this.alerts.get(a, id);
   }
 
+  @Get('alerts/:id/assignees')
+  @RequirePermissions('alert.assign')
+  assignees(@CurrentAuth() a: AuthContext, @Param('id', uuid) id: string) {
+    return this.alerts.assignees(a, id);
+  }
+
   @Post('alerts/:id/acknowledge')
   @RequirePermissions('alert.assign')
   acknowledge(

@@ -20,6 +20,24 @@ export function Layout() {
               </NavLink>
             )}
             {can('scheme.view') && (
+              <NavLink to="/map" className={link}>
+                Map
+              </NavLink>
+            )}
+            {can('alert.view') && (
+              <NavLink to="/alerts" end className={link}>
+                Alerts
+              </NavLink>
+            )}
+            {!can('alert.view') && can('alert.rule.manage') && (
+              <NavLink to="/alerts/rules" className={link}>
+                Alert rules
+              </NavLink>
+            )}
+            <NavLink to="/corrective-actions" className={link}>
+              Actions
+            </NavLink>
+            {can('scheme.view') && (
               <NavLink to="/schemes" className={link}>
                 Schemes
               </NavLink>
