@@ -21,7 +21,8 @@
     "db:drift-check": "pnpm --filter @dcp/api db:drift-check",
     "db:seed": "pnpm --filter @dcp/api db:seed",
     "db:setup": "pnpm build:shared && pnpm db:bootstrap-roles && pnpm db:migrate && pnpm db:seed",
-    "test:e2e": "playwright test -c e2e/playwright.config.ts"
+    "test:e2e": "playwright test -c e2e/playwright.config.ts",
+    "db:demo-reset": "pnpm --filter @dcp/api db:demo-reset"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

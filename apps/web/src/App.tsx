@@ -19,6 +19,8 @@ import {
   CorrectiveActionsPage,
 } from './pages/AlertPages';
 import { BudgetPage } from './pages/BudgetPage';
+import { ImportBatchPage, ImportsPage } from './pages/ImportsPage';
+import { ReportsPage } from './pages/ReportsPage';
 import { DashboardPage, Scheme360Page } from './pages/DashboardPages';
 import { FinancePage, ProgressPage, VerificationQueuePage } from './pages/FinancePages';
 import { SchemeCreatePage, SchemeDetailPage, SchemeListPage } from './pages/SchemesPages';
@@ -92,6 +94,9 @@ export function AppRoutes() {
         <Route path="alerts/:id" element={perm(['alert.view'], <AlertDetailPage />)} />
         <Route path="corrective-actions" element={<CorrectiveActionsPage />} />
         <Route path="corrective-actions/:id" element={<CorrectiveActionDetailPage />} />
+        <Route path="reports" element={perm(['report.view'], <ReportsPage />)} />
+        <Route path="imports" element={perm(['integration.manage'], <ImportsPage />)} />
+        <Route path="imports/:id" element={perm(['integration.manage'], <ImportBatchPage />)} />
         <Route path="admin/users" element={perm(['user.manage'], <UsersPage />)} />
         <Route path="admin/roles" element={perm(['role.manage'], <RolesPage />)} />
       </Route>

@@ -88,6 +88,18 @@ export const StatusPill = ({ status }: { status: string }) => {
     REJECTED: 'bg-red-100 text-red-800',
     CANCELLED: 'bg-red-100 text-red-800',
     PENDING: 'bg-blue-100 text-blue-800',
+    VERIFIED: 'bg-green-100 text-green-800',
+    OPEN: 'bg-red-100 text-red-800',
+    ACKNOWLEDGED: 'bg-amber-100 text-amber-800',
+    ASSIGNED: 'bg-amber-100 text-amber-800',
+    IN_PROGRESS: 'bg-blue-100 text-blue-800',
+    PENDING_VERIFICATION: 'bg-violet-100 text-violet-800',
+    REOPENED: 'bg-red-100 text-red-800',
+    RESOLVED: 'bg-green-100 text-green-800',
+    CLOSED: 'bg-green-100 text-green-800',
+    VALIDATED: 'bg-blue-100 text-blue-800',
+    FAILED: 'bg-red-100 text-red-800',
+    COMMITTED: 'bg-green-100 text-green-800',
   };
   return (
     <span

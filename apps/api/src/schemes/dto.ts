@@ -4,6 +4,7 @@ import {
   IsDateString,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -80,4 +81,37 @@ export class SchemeTransitionDto extends VersionDto {
   @IsIn(['ACTIVE', 'SUSPENDED', 'COMPLETED', 'CLOSED', 'CANCELLED'])
   to!: 'ACTIVE' | 'SUSPENDED' | 'COMPLETED' | 'CLOSED' | 'CANCELLED';
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000) reason?: string;
+}
+
+export class CreateMilestoneDto {
+  @ApiProperty({ example: 'Road formation 0–10 km' }) @IsString() @Length(3, 300) name!: string;
+  @ApiProperty({ example: '2027-01-31' }) @IsDateString() targetDate!: string;
+  @ApiProperty({ example: '10.000' })
+  @Matches(/^\d{1,15}(\.\d{1,3})?$/)
+  targetQuantity!: string;
+  @ApiProperty({ example: 'km' }) @IsString() @Length(1, 30) unit!: string;
+  @ApiProperty({
+    example: '100.00',
+    description: 'Weight in physical completion; all milestones total at most 100',
+  })
+  @Matches(/^\d{1,3}(\.\d{1,2})?$/)
+  weight!: string;
+}
+
+export class SchemeLocationDto {
+  @ApiProperty({ example: 26.1445 })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude!: number;
+  @ApiProperty({ example: 91.7362 })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude!: number;
+  @ApiProperty({ enum: ['SYNTHETIC_APPROXIMATE', 'SYNTHETIC_SURVEYED'] })
+  @IsIn(['SYNTHETIC_APPROXIMATE', 'SYNTHETIC_SURVEYED'])
+  locationAccuracy!: string;
 }

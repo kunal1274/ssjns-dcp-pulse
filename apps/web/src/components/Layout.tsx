@@ -62,6 +62,16 @@ export function Layout() {
                 Verification queue
               </NavLink>
             )}
+            {can('report.view') && (
+              <NavLink to="/reports" className={link}>
+                Reports
+              </NavLink>
+            )}
+            {can('integration.manage') && (
+              <NavLink to="/imports" className={link}>
+                Imports
+              </NavLink>
+            )}
             {can('user.manage') && (
               <NavLink to="/admin/users" className={link}>
                 Users

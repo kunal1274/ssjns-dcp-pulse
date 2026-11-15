@@ -579,9 +579,31 @@ export function DashboardPage() {
           <Card title={`Delayed schemes (${data.delayedSchemes.total})`}>
             <SchemeTable items={data.delayedSchemes.items} />
           </Card>
+          <AreaSchemes jurisdictionId={id ?? null} qs={qs} />
         </>
       )}
     </div>
+  );
+}
+
+/** Every monitored scheme in the area (paginated server-side, 100 per page). */
+function AreaSchemes({ jurisdictionId, qs }: { jurisdictionId: string | null; qs: string }) {
+  const p = new URLSearchParams(qs.replace(/^\?/, ''));
+  p.set('pageSize', '100');
+  if (jurisdictionId) p.set('jurisdictionId', jurisdictionId);
+  const { data, error, denied, loading } = useLoad<{ total: number; items: SchemeMetrics[] }>(
+    `/dashboards/schemes?${p.toString()}`,
+  );
+  return (
+    <Card title={`Schemes in this area${data ? ` (${data.total})` : ''}`}>
+      <LoadState loading={loading && !data} error={error} denied={denied} />
+      {data && <SchemeTable items={data.items} />}
+      {data && data.total > data.items.length && (
+        <p className="mt-2 text-xs text-slate-600">
+          Showing the first {data.items.length}; narrow the filters to see the rest.
+        </p>
+      )}
+    </Card>
   );
 }
 
