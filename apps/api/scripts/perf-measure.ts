@@ -336,7 +336,7 @@ async function main() {
     },
     results,
   };
-  console.log(JSON.stringify(out, null, 2));
+  console.info(JSON.stringify(out, null, 2));
   if (process.env.PERF_OUTPUT)
     writeFileSync(process.env.PERF_OUTPUT, JSON.stringify(out, null, 2) + '\n');
   await prisma.$disconnect();
