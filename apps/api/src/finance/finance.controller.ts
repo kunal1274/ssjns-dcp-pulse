@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiHeader, ApiTags } from '@nestjs/swagger';
 import { CurrentAuth, type AuthContext, type AuthedRequest } from '../auth/auth-context';
+import { AlertEngineService } from '../alerts/alert-engine.service';
 import { RequirePermissions } from '../authz/permissions.guard';
 import {
   CorrectionDto,
@@ -35,7 +36,10 @@ const uuid = new ParseUUIDPipe();
 @ApiTags('finance')
 @Controller()
 export class FinanceController {
-  constructor(private readonly finance: FinanceService) {}
+  constructor(
+    private readonly finance: FinanceService,
+    private readonly engine: AlertEngineService,
+  ) {}
 
   @Get('fund-releases')
   @RequirePermissions('scheme.view')
@@ -65,7 +69,7 @@ export class FinanceController {
     @Headers('idempotency-key') key: string | undefined,
     @Req() req: AuthedRequest,
   ) {
-    return this.finance.decideRelease(a, id, dto, key, rid(req));
+    return this.engine.after(a.tenantId, this.finance.decideRelease(a, id, dto, key, rid(req)));
   }
 
   @Post('fund-releases/:id/corrections')
@@ -78,7 +82,7 @@ export class FinanceController {
     @Headers('idempotency-key') key: string | undefined,
     @Req() req: AuthedRequest,
   ) {
-    return this.finance.correctRelease(a, id, dto, key, rid(req));
+    return this.engine.after(a.tenantId, this.finance.correctRelease(a, id, dto, key, rid(req)));
   }
 
   @Get('fund-releases/:id/decisions')
@@ -128,7 +132,7 @@ export class FinanceController {
     @Headers('idempotency-key') key: string | undefined,
     @Req() req: AuthedRequest,
   ) {
-    return this.finance.decideExpenditure(a, id, dto, key, rid(req));
+    return this.engine.after(a.tenantId, this.finance.decideExpenditure(a, id, dto, key, rid(req)));
   }
 
   @Post('expenditure/:id/corrections')
@@ -141,7 +145,10 @@ export class FinanceController {
     @Headers('idempotency-key') key: string | undefined,
     @Req() req: AuthedRequest,
   ) {
-    return this.finance.correctExpenditure(a, id, dto, key, rid(req));
+    return this.engine.after(
+      a.tenantId,
+      this.finance.correctExpenditure(a, id, dto, key, rid(req)),
+    );
   }
 
   @Get('expenditure/:id/decisions')

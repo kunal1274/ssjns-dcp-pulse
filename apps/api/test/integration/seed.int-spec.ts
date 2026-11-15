@@ -109,12 +109,21 @@ describe('synthetic ASSAM-DEMO seed', () => {
     expect(by.VERIFIED).toBe(2);
   });
 
-  it('has 3 alerts with unique dedup keys and illustrative rules', async () => {
+  it('has the 3 seeded alerts, unique dedup keys and illustrative rules', async () => {
+    // Later e2e suites run the alert engine, so only the seeded keys are asserted exactly.
     expect(
-      await count(`SELECT count(DISTINCT dedup_key) n FROM alerts WHERE tenant_id = $1`, [
-        tenantId,
-      ]),
+      await count(
+        `SELECT count(DISTINCT dedup_key) n FROM alerts WHERE tenant_id = $1
+           AND (dedup_key = ANY($2) OR dedup_key LIKE 'MILESTONE_LATE:DEMO-004:%')`,
+        [tenantId, ['PHYSICAL_FINANCIAL_GAP:DEMO-001', 'RELEASE_EXCEEDED:DEMO-005']],
+      ),
     ).toBe(3);
+    expect(
+      await count(
+        `SELECT count(*) - count(DISTINCT dedup_key) n FROM alerts WHERE tenant_id = $1`,
+        [tenantId],
+      ),
+    ).toBe(0);
     expect(
       await count(
         `SELECT count(*) n FROM alert_rules WHERE tenant_id = $1 AND NOT is_illustrative`,

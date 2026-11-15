@@ -453,7 +453,7 @@ export const ALERT_RULES = [
   {
     ruleCode: 'PHYSICAL_FINANCIAL_GAP',
     severity: 'MEDIUM',
-    threshold: { gapPercentagePoints: 10 },
+    threshold: { gapPercentagePoints: 15 },
   },
   { ruleCode: 'RELEASE_EXCEEDED', severity: 'HIGH', threshold: { toleranceAmount: '0.00' } },
   { ruleCode: 'ALLOCATION_EXCEEDED', severity: 'HIGH', threshold: { toleranceAmount: '0.00' } },
@@ -462,18 +462,47 @@ export const ALERT_RULES = [
   { ruleCode: 'DATA_STALE', severity: 'LOW', threshold: { maxDaysSinceVerifiedUpdate: 45 } },
 ] as const;
 
+export const RULE_DEDUP_TEMPLATES: Record<string, string> = {
+  REPORT_OVERDUE: 'REPORT_OVERDUE:{schemeCode}',
+  MILESTONE_LATE: 'MILESTONE_LATE:{schemeCode}:{milestoneId}',
+  PHYSICAL_FINANCIAL_GAP: 'PHYSICAL_FINANCIAL_GAP:{schemeCode}',
+  RELEASE_EXCEEDED: 'RELEASE_EXCEEDED:{schemeCode}',
+  ALLOCATION_EXCEEDED: 'ALLOCATION_EXCEEDED:{schemeCode}',
+  APPROVAL_AGED: 'APPROVAL_AGED:{schemeCode}:{entityType}:{entityId}',
+  EVIDENCE_MISSING: 'EVIDENCE_MISSING:{schemeCode}:{submissionId}',
+  DATA_STALE: 'DATA_STALE:{schemeCode}',
+};
+
+/** Illustrative descriptions; thresholds are demo values, not policy. */
+export const RULE_DESCRIPTIONS: Record<string, string> = {
+  REPORT_OVERDUE:
+    'No progress report submitted for a reporting period after its due date plus grace days.',
+  MILESTONE_LATE:
+    'A milestone is past its target date (plus grace days) without verified completion.',
+  PHYSICAL_FINANCIAL_GAP:
+    'Verified financial utilisation and verified physical completion differ by at least the configured points. Review indicator only; not evidence of misuse.',
+  RELEASE_EXCEEDED:
+    'Verified expenditure exceeds verified fund releases by more than the tolerance.',
+  ALLOCATION_EXCEEDED:
+    'Verified releases exceed the top-level allocation, or allocation exceeds the approved budget, by more than the tolerance.',
+  APPROVAL_AGED:
+    'A release, expenditure or progress submission has awaited verification longer than allowed.',
+  EVIDENCE_MISSING: 'A progress submission at the configured stage has no evidence file attached.',
+  DATA_STALE: 'No verified financial or progress update within the configured number of days.',
+};
+
 export const ALERTS = [
   {
     ruleCode: 'PHYSICAL_FINANCIAL_GAP',
     scheme: 'DEMO-001',
     severity: 'MEDIUM',
     status: 'OPEN',
-    dedupKey: 'PHYSICAL_FINANCIAL_GAP:DEMO-001:2026-10',
+    dedupKey: 'PHYSICAL_FINANCIAL_GAP:DEMO-001',
     context: {
       budgetUtilisationPct: '55.00',
       physicalCompletionPct: '40.00',
       gapPercentagePoints: '15.00',
-      thresholdPercentagePoints: 10,
+      thresholdPercentagePoints: 15,
       note: 'Illustrative review rule only; not evidence of misuse.',
     },
   },
@@ -482,7 +511,7 @@ export const ALERTS = [
     scheme: 'DEMO-004',
     severity: 'HIGH',
     status: 'ACKNOWLEDGED',
-    dedupKey: 'MILESTONE_LATE:DEMO-004:stage-2',
+    dedupKey: 'MILESTONE_LATE:DEMO-004:{milestoneId}',
     context: { milestone: 'Stage 2 works', targetDate: '2026-09-30' },
   },
   {
@@ -490,7 +519,7 @@ export const ALERTS = [
     scheme: 'DEMO-005',
     severity: 'HIGH',
     status: 'OPEN',
-    dedupKey: 'RELEASE_EXCEEDED:DEMO-005:2026-10',
+    dedupKey: 'RELEASE_EXCEEDED:DEMO-005',
     context: { verifiedExpenditure: lakh(24), verifiedReleases: lakh(20) },
   },
 ] as const;

@@ -115,7 +115,7 @@ REVOKE UPDATE, DELETE ON alert_events, corrective_action_events FROM dcp_app;
 ALTER TABLE corrective_actions
   ADD CONSTRAINT corrective_actions_priority_check CHECK (priority IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
   ADD CONSTRAINT corrective_actions_independent_verifier CHECK (
-    verified_by IS NULL OR (verified_by <> owner_id AND verified_by IS DISTINCT FROM created_by)
+    verified_by IS NULL OR verified_by <> owner_id
   );
 ALTER TABLE alert_rules
   ADD CONSTRAINT alert_rules_frequency_check CHECK (evaluation_frequency IN ('HOURLY', 'DAILY', 'WEEKLY', 'ON_EVENT'));

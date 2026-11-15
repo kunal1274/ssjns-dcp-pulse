@@ -13,6 +13,8 @@ import {
   AGENCY_JURISDICTIONS,
   ALERT_RULES,
   ALERTS,
+  RULE_DEDUP_TEMPLATES,
+  RULE_DESCRIPTIONS,
   DEMO_USERS,
   FINANCIAL_YEAR,
   JURISDICTION_TYPES,
@@ -457,7 +459,9 @@ async function seedTenant(tx: Tx, passwordHash: string): Promise<void> {
         severity: rule.severity,
         ownerRoleCode: 'DISTRICT_REVIEWER',
         notificationChannel: 'IN_APP',
-        dedupKeyTemplate: `${rule.ruleCode}:{schemeCode}:{periodOrMilestone}`,
+        dedupKeyTemplate: RULE_DEDUP_TEMPLATES[rule.ruleCode],
+        description: RULE_DESCRIPTIONS[rule.ruleCode],
+        evaluationFrequency: rule.ruleCode === 'APPROVAL_AGED' ? 'HOURLY' : 'DAILY',
         isIllustrative: true,
       },
     });
@@ -465,18 +469,28 @@ async function seedTenant(tx: Tx, passwordHash: string): Promise<void> {
   }
 
   for (const alert of ALERTS) {
+    // Seeded keys follow the engine's dedup template so evaluation refreshes them instead of duplicating.
+    let dedupKey: string = alert.dedupKey;
+    let context: Record<string, unknown> = { ...alert.context };
+    if (dedupKey.includes('{milestoneId}')) {
+      const ms = await tx.schemeMilestone.findFirstOrThrow({
+        where: { schemeId: scheme(alert.scheme), name: String(context.milestone) },
+      });
+      dedupKey = dedupKey.replace('{milestoneId}', ms.id);
+      context = { ...context, milestoneId: ms.id };
+    }
     await tx.alert.create({
       data: {
         tenantId,
         schemeId: scheme(alert.scheme),
         ruleId: ruleIds.get(alert.ruleCode)!,
         ruleCode: alert.ruleCode,
-        dedupKey: alert.dedupKey,
+        dedupKey,
         severity: alert.severity,
         status: alert.status,
         assigneeId: alert.status === 'ACKNOWLEDGED' ? districtReviewer : null,
         detectedAt: ts('2026-11-10T06:00:00+05:30'),
-        contextJson: { ...alert.context, seeded: true, illustrative: true },
+        contextJson: { ...context, seeded: true, illustrative: true },
       },
     });
   }
