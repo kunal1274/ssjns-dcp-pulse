@@ -44,7 +44,7 @@ docker compose up -d --build  # db -> migrate (roles, migrations, seed) -> api -
 
 - Status page: http://localhost:8080
 - API liveness / readiness: http://localhost:3000/api/v1/health/live, `/api/v1/health/ready`
-- OpenAPI: http://localhost:3000/api/docs
+- OpenAPI: http://localhost:3000/api/docs (development only; in the Docker stack set `API_DOCS_ENABLED=true`)
 
 The `migrate` service is idempotent: it creates the `dcp_app` runtime role, applies
 migrations and seeds `ASSAM-DEMO` only if absent.

@@ -43,6 +43,8 @@ services:
       DEFAULT_TENANT_CODE: ${DEFAULT_TENANT_CODE:-ASSAM-DEMO}
       # Plain-HTTP local stack; set COOKIE_SECURE=true behind HTTPS.
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # Swagger UI at /api/docs is off in the production image unless enabled here.
+      API_DOCS_ENABLED: ${API_DOCS_ENABLED:-false}
       SESSION_IDLE_MINUTES: ${SESSION_IDLE_MINUTES:-30}
       SESSION_ABSOLUTE_HOURS: ${SESSION_ABSOLUTE_HOURS:-12}
       AUTH_RATE_LIMIT_PER_MINUTE: ${AUTH_RATE_LIMIT_PER_MINUTE:-10}

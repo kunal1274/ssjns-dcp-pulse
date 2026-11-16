@@ -5,6 +5,8 @@ export interface AppEnv {
   logLevel: string;
   corsOrigins: string[];
   serviceName: string;
+  /** Swagger UI at /api/docs; off in production unless API_DOCS_ENABLED=true. */
+  apiDocsEnabled: boolean;
   auth: AuthEnv;
 }
 
@@ -77,6 +79,8 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
       .map((o) => o.trim())
       .filter(Boolean),
     serviceName: 'dcp-pulse-api',
+    apiDocsEnabled:
+      (source.API_DOCS_ENABLED ?? (nodeEnv === 'production' ? 'false' : 'true')) === 'true',
     auth,
   };
 }

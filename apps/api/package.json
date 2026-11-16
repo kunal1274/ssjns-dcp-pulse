@@ -32,6 +32,7 @@
     "class-validator": "0.14.4",
     "cookie-parser": "1.4.7",
     "exceljs": "4.4.0",
+    "helmet": "8.1.0",
     "nestjs-pino": "4.6.1",
     "pg": "8.23.1",
     "pino": "9.14.0",
