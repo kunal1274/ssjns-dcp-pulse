@@ -239,6 +239,18 @@ export class ImportsService {
           },
         });
         if (already) {
+          // Another batch may have committed the same external ID with different values.
+          const prev = await tx.fundRelease.findUnique({ where: { id: already.internalId } });
+          if (
+            prev &&
+            (!prev.amount.equals(money(r.amount)) ||
+              prev.releaseDate.toISOString().slice(0, 10) !== r.releaseDate ||
+              prev.reference !== r.reference)
+          )
+            throw conflict(
+              'IMPORT_CONFLICT',
+              `External ID ${r.externalId} was already imported with different values; preview the file again.`,
+            );
           skipped++;
           continue;
         }
