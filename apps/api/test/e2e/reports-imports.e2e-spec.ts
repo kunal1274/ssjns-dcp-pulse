@@ -361,5 +361,39 @@ describe('F12 MIS reports, exports and synthetic import (e2e, real database)', (
       ).rejects.toThrow();
       await owner.query('RESET ROLE');
     });
+
+    it('refuses to commit a staged batch whose external ID was since imported with different values', async () => {
+      const row = (amount: string) =>
+        [header, `SYN-${stamp}-C,DEMO-002,${amount},${yesterday},SYN/C/${stamp}`].join('\n');
+      const preview = async (amount: string) =>
+        (
+          await post(admin, '/imports/preview', {
+            sourceId: ids.source,
+            filename: `c-${amount}.csv`,
+            content: row(amount),
+          }).expect(201)
+        ).body;
+      const a = await preview('700.00');
+      const b = await preview('900.00');
+      await post(admin, `/imports/${a.batch.id}/commit`, { version: a.batch.version }).expect(201);
+      const res = await post(admin, `/imports/${b.batch.id}/commit`, {
+        version: b.batch.version,
+      }).expect(409);
+      expect(JSON.stringify(res.body)).toContain('IMPORT_CONFLICT');
+      expect(
+        (await get(admin, `/imports/${b.batch.id}`).expect(200)).body.batch?.status ?? 'x',
+      ).not.toBe('COMMITTED');
+    });
+
+    it('hides alert details on scheme 360 and GIS from users without alert.view', async () => {
+      const s360 = (await get(planner, `/dashboards/scheme/${ids['DEMO-001']}`).expect(200)).body;
+      expect(s360.alertsVisible).toBe(false);
+      expect(s360.alerts).toEqual([]);
+      const gis = (await get(planner, `/gis/schemes/${ids['DEMO-001']}`).expect(200)).body;
+      expect(gis.alerts).toEqual([]);
+      expect(gis.topAlertSeverity).toBeNull();
+      const mon = (await get(monitor, `/dashboards/scheme/${ids['DEMO-001']}`).expect(200)).body;
+      expect(mon.alertsVisible).toBe(true);
+    });
   });
 });

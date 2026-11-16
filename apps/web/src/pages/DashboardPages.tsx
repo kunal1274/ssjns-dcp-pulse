@@ -636,6 +636,7 @@ interface Scheme360 {
     decided_at: string;
     actor: string;
   }[];
+  alertsVisible?: boolean;
   alerts: { id: string; ruleCode: string; severity: string; status: string; detectedAt: string }[];
 }
 
@@ -759,7 +760,11 @@ export function Scheme360Page() {
               </Table>
             </Card>
             <Card title="Alerts">
-              {data.alerts.length === 0 ? (
+              {data.alertsVisible === false ? (
+                <p className="text-sm text-slate-500">
+                  Alert details need alert-view access for this scheme.
+                </p>
+              ) : data.alerts.length === 0 ? (
                 <p className="text-sm text-slate-500">No alerts.</p>
               ) : (
                 <ul className="text-sm" data-testid="s360-alerts">

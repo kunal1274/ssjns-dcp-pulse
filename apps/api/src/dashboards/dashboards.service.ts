@@ -318,8 +318,16 @@ export class DashboardsService {
       const [row] = await tx.$queryRaw<SchemeRow[]>(
         withMetrics({ scope, schemeId: id, cutoff }, Prisma.sql`SELECT ${SCHEME_COLUMNS} FROM m`),
       );
+      const alertScope = await this.authz.scopeFor(tx, auth.userId, 'alert.view');
+      const canSeeAlerts = !!alertScope && this.authz.schemeInScope(alertScope, s);
       const [alerts, decisions, timeline] = await Promise.all([
-        tx.alert.findMany({ where: { schemeId: id }, orderBy: { detectedAt: 'desc' }, take: 20 }),
+        canSeeAlerts
+          ? tx.alert.findMany({
+              where: { schemeId: id },
+              orderBy: { detectedAt: 'desc' },
+              take: 20,
+            })
+          : Promise.resolve([]),
         tx.$queryRaw<
           {
             entity_type: string;
@@ -386,6 +394,7 @@ export class DashboardsService {
           verifiedAt: t.verifiedAt,
         })),
         approvalHistory: decisions,
+        alertsVisible: canSeeAlerts,
         alerts: alerts.map((a) => ({
           id: a.id,
           ruleCode: a.ruleCode,

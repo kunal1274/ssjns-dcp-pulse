@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { AuthContext } from '../auth/auth-context';
-import { AuthorizationService, notFound } from '../authz/authorization.service';
+import { type ScopeFilter, AuthorizationService, notFound } from '../authz/authorization.service';
 import { mapDbError } from '../common/db-errors';
 import { withMetrics } from '../dashboards/kpi.sql';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,6 +12,7 @@ export const DEMO_BOUNDS = { minLon: 89.6, maxLon: 96.1, minLat: 24.1, maxLat: 2
 
 interface GisRow {
   id: string;
+  agency_id: string;
   scheme_code: string;
   name: string;
   category: string;
@@ -72,7 +73,7 @@ export class GisService {
         sev AS (
           SELECT a.scheme_id, MAX(CASE a.severity WHEN 'CRITICAL' THEN 4 WHEN 'HIGH' THEN 3 WHEN 'MEDIUM' THEN 2 ELSE 1 END) AS n
           FROM alerts a JOIN m ON m.id = a.scheme_id WHERE a.status IN ('OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS') GROUP BY a.scheme_id)
-        SELECT m.id, m.scheme_code, m.name, m.category, m.status::text AS status, m.jurisdiction_id,
+        SELECT m.id, m.agency_id, m.scheme_code, m.name, m.category, m.status::text AS status, m.jurisdiction_id,
           j.name AS jurisdiction_name, d.name AS district_name,
           m.physical::text, m.fin_util::text, m.open_alerts::int,
           CASE sev.n WHEN 4 THEN 'CRITICAL' WHEN 3 THEN 'HIGH' WHEN 2 THEN 'MEDIUM' WHEN 1 THEN 'LOW' END AS top_severity,
@@ -85,7 +86,19 @@ export class GisService {
     );
   }
 
-  private feature(r: GisRow) {
+  /** Alert details need `alert.view` covering the scheme, not just `scheme.view`. */
+  private alertsVisible(alertScope: ScopeFilter | null, r: GisRow): boolean {
+    return (
+      !!alertScope &&
+      this.authz.schemeInScope(alertScope, {
+        id: r.id,
+        jurisdictionId: r.jurisdiction_id,
+        agencyId: r.agency_id,
+      })
+    );
+  }
+
+  private feature(r: GisRow, showAlerts: boolean) {
     const issue = coordinateIssue(r.lon, r.lat);
     const props = {
       id: r.id,
@@ -97,8 +110,8 @@ export class GisService {
       district: r.district_name,
       physicalCompletionPercent: r.physical,
       financialUtilisationPercent: r.fin_util,
-      openAlerts: r.open_alerts,
-      topAlertSeverity: r.top_severity,
+      openAlerts: showAlerts ? r.open_alerts : null,
+      topAlertSeverity: showAlerts ? r.top_severity : null,
       locationAccuracy: r.location_accuracy,
       locationSource: r.source,
       synthetic: true,
@@ -112,10 +125,11 @@ export class GisService {
       .withTenant(auth.tenantId, async (tx) => {
         const scope = await this.authz.requireScope(tx, auth.userId, 'scheme.view');
         const rows = await tx.$queryRaw<GisRow[]>(this.query(scope, q));
+        const alertScope = await this.authz.scopeFor(tx, auth.userId, 'alert.view');
         const features = [];
         const unmapped = [];
         for (const r of rows) {
-          const f = this.feature(r);
+          const f = this.feature(r, this.alertsVisible(alertScope, r));
           if (f.issue === 'MISSING' || f.issue === 'INVALID') unmapped.push(f.props);
           else
             features.push({
@@ -144,12 +158,22 @@ export class GisService {
         const scope = await this.authz.requireScope(tx, auth.userId, 'scheme.view');
         const [row] = await tx.$queryRaw<GisRow[]>(this.query(scope, { schemeId: id }));
         if (!row) throw notFound('Scheme');
-        const f = this.feature(row);
-        const alerts = await tx.alert.findMany({
-          where: { schemeId: id, status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] } },
-          select: { id: true, ruleCode: true, severity: true, status: true, reviewIndicator: true },
-          orderBy: { detectedAt: 'desc' },
-        });
+        const alertScope = await this.authz.scopeFor(tx, auth.userId, 'alert.view');
+        const showAlerts = this.alertsVisible(alertScope, row);
+        const f = this.feature(row, showAlerts);
+        const alerts = showAlerts
+          ? await tx.alert.findMany({
+              where: { schemeId: id, status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] } },
+              select: {
+                id: true,
+                ruleCode: true,
+                severity: true,
+                status: true,
+                reviewIndicator: true,
+              },
+              orderBy: { detectedAt: 'desc' },
+            })
+          : [];
         return {
           ...f.props,
           longitude: f.coords[0],

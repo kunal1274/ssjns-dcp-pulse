@@ -65,6 +65,7 @@ interface Ctx {
   q: ReportQuery;
   f: MetricsFilter;
   extra: [string, string][];
+  alertScope?: ScopeFilter;
 }
 
 @Injectable()
@@ -191,8 +192,10 @@ export class ReportsService {
     const def = REPORT_BY_CODE.get(code);
     if (!def) throw notFound('Report');
     const scope = await this.authz.requireScope(tx, auth.userId, permission);
-    if (def.extraPermission === 'alert.view')
-      await this.authz.requireScope(tx, auth.userId, 'alert.view');
+    const alertScope =
+      def.extraPermission === 'alert.view'
+        ? await this.authz.requireScope(tx, auth.userId, 'alert.view')
+        : undefined;
     if (def.extraPermission === 'audit.view') {
       const a = await this.authz.requireScope(tx, auth.userId, 'audit.view');
       if (!a.all || !scope.all)
@@ -221,7 +224,7 @@ export class ReportsService {
       category: q.category,
       cutoff,
     };
-    const ctx: Ctx = { tx, auth, scope, q, f, extra: [] };
+    const ctx: Ctx = { tx, auth, scope, q, f, extra: [], alertScope };
     const rows = await this.rows(def, ctx);
     if (rows.length > MAX_ROWS)
       throw badRequest('REPORT_TOO_LARGE', `More than ${MAX_ROWS} rows; narrow the filters.`);
@@ -507,8 +510,11 @@ export class ReportsService {
   private async alerts(ctx: Ctx): Promise<Row[]> {
     const { tx, scope } = ctx;
     const filtered = !!(ctx.q.jurisdictionId || ctx.q.financialYearId || ctx.q.category);
-    const where: Prisma.AlertWhereInput =
-      scope.all && !filtered ? {} : { scheme: this.schemeWhere(ctx) };
+    const and: Prisma.AlertWhereInput[] = [];
+    if (!scope.all || filtered) and.push({ scheme: this.schemeWhere(ctx) });
+    if (ctx.alertScope && !ctx.alertScope.all)
+      and.push({ scheme: this.authz.schemeWhere(ctx.alertScope) });
+    const where: Prisma.AlertWhereInput = { AND: and };
     const rows = await tx.alert.findMany({
       where,
       include: {
