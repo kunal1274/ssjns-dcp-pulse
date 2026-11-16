@@ -406,6 +406,10 @@ describe('F12 MIS reports, exports and synthetic import (e2e, real database)', (
       expect(list.items.every((s: { openAlerts: unknown }) => s.openAlerts === null)).toBe(true);
       const monState = (await get(monitor, '/dashboards/state').expect(200)).body;
       expect(typeof monState.totals.openAlerts).toBe('number');
+      const none = (await get(monitor, '/dashboards/state?category=NO-SUCH-CATEGORY').expect(200))
+        .body;
+      expect(none.totals.schemeCount).toBe(0);
+      expect(none.totals.openAlerts).toBe(0);
     });
   });
 });

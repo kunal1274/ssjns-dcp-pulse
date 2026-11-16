@@ -202,7 +202,8 @@ export const AGGREGATES = Prisma.sql`
   COALESCE(SUM(m.open_commitments), 0::numeric(18, 2))::text AS open_commitments,
   COALESCE(SUM(m.pending_financial), 0)::int AS pending_financial,
   COALESCE(SUM(m.pending_progress), 0)::int AS pending_progress,
-  SUM(m.open_alerts)::int AS open_alerts,
+  (CASE WHEN COUNT(*) > 0 AND COUNT(m.open_alerts) = 0 THEN NULL
+    ELSE COALESCE(SUM(m.open_alerts), 0) END)::int AS open_alerts,
   COUNT(*) FILTER (WHERE m.delayed)::int AS delayed_count,
   COUNT(*) FILTER (WHERE m.open_alerts > 0 OR m.delayed)::int AS corrective_count,
   COALESCE(SUM(m.milestones_delayed), 0)::int AS milestones_delayed,
