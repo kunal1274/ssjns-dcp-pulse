@@ -4,6 +4,28 @@
 > government deployment. Thresholds are illustrative. Screenshots were captured by the automated
 > NESFIC journey (`e2e/nesfic.spec.ts`) against the local Docker stack after `pnpm db:demo-reset`.
 
+## Index (F13–F15)
+
+This file is the F10–F12 pack as written at that stage; its test counts and limitations are superseded by:
+
+| File                                 | Contents                                              |
+| ------------------------------------ | ----------------------------------------------------- |
+| `01-baseline-audit-f01-f12.md`       | Baseline audit before hardening                       |
+| `02-f13-hardening-report.md`         | Defects fixed, new tests, reconciliation, performance |
+| `03-implementation-status.md`        | Status and traceability matrix                        |
+| `04-architecture-and-database.md`    | Architecture and database summary                     |
+| `05-roles-and-permissions.md`        | Role matrix and demo accounts                         |
+| `06-security-controls.md`            | Security controls and their tests                     |
+| `07-test-execution-report.md`        | Commands run and results                              |
+| `08-deployment-status.md`            | Not deployed; Render draft and open points            |
+| `09-demo-walkthrough.md`             | Start, reset, walkthrough, screenshot inventory       |
+| `10-known-limitations.md`            | Limitations                                           |
+| `11-submission-checklist.md`         | Checklist and readiness verdict                       |
+| `12-application-alignment-review.md` | EVIDENCE PENDING                                      |
+| `13-capability-mapping.md`           | DCP Pulse only; other products EVIDENCE PENDING       |
+| `proof-of-work-dcp-pulse.pdf`        | Compiled from files 02–10 and the screenshots         |
+| `evidence/`                          | Saved reconciliation and performance output           |
+
 ## Feature status (only items with a passing automated test are COMPLETE)
 
 | Area                                                                                                                                                           | Status                                           | Evidence                                                                       |
