@@ -19,7 +19,7 @@ interface Props {
   district: string | null;
   physicalCompletionPercent: string | null;
   financialUtilisationPercent: string | null;
-  openAlerts: number;
+  openAlerts: number | null;
   topAlertSeverity: string | null;
   locationAccuracy: string | null;
   coordinateIssue: string | null;
@@ -107,17 +107,22 @@ export function GisPage() {
             'circle-stroke-width': 2,
             'circle-stroke-color': '#ffffff',
             'circle-color': [
-              'match',
-              ['coalesce', ['get', 'topAlertSeverity'], 'NONE'],
-              'CRITICAL',
-              COLORS.CRITICAL,
-              'HIGH',
-              COLORS.HIGH,
-              'MEDIUM',
-              COLORS.MEDIUM,
-              'LOW',
-              COLORS.LOW,
-              '#2563eb',
+              'case',
+              ['==', ['coalesce', ['get', 'openAlerts'], -1], -1],
+              '#94a3b8',
+              [
+                'match',
+                ['coalesce', ['get', 'topAlertSeverity'], 'NONE'],
+                'CRITICAL',
+                COLORS.CRITICAL,
+                'HIGH',
+                COLORS.HIGH,
+                'MEDIUM',
+                COLORS.MEDIUM,
+                'LOW',
+                COLORS.LOW,
+                '#2563eb',
+              ],
             ],
           },
         });
@@ -261,7 +266,14 @@ export function GisPage() {
                 <td className="px-2 py-2">{pct(p.physicalCompletionPercent)}</td>
                 <td className="px-2 py-2">{pct(p.financialUtilisationPercent)}</td>
                 <td className="px-2 py-2">
-                  {p.openAlerts > 0 && p.topAlertSeverity ? (
+                  {p.openAlerts === null ? (
+                    <span
+                      className="text-slate-500"
+                      title="Needs alert-view access for this scheme"
+                    >
+                      Restricted
+                    </span>
+                  ) : p.openAlerts > 0 && p.topAlertSeverity ? (
                     <>
                       <SeverityPill severity={p.topAlertSeverity} /> ×{p.openAlerts}
                     </>
