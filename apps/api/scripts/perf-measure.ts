@@ -244,6 +244,9 @@ async function main() {
   const tBulk = performance.now();
   const bulkResult = await bulk(prisma);
   const bulkMs = performance.now() - tBulk;
+  // A one-transaction bulk load leaves planner statistics stale until autovacuum runs (about a
+  // minute), during which the dashboard query can exceed its 5 s transaction limit.
+  if (bulkResult !== 'already present') await prisma.$executeRawUnsafe('ANALYZE');
   const [{ version }] = await prisma.$queryRaw<{ version: string }[]>`SELECT version()`;
   const counts = await prisma.$queryRaw<{ t: string; n: number }[]>`
     SELECT 'schemes' t, COUNT(*)::int n FROM schemes UNION ALL SELECT 'fund_releases', COUNT(*)::int FROM fund_releases
