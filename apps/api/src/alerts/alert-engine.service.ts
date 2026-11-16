@@ -332,7 +332,7 @@ export class AlertEngineService implements OnModuleInit, OnModuleDestroy {
       const rows = await tx.$queryRaw<
         { entity: string; id: string; scheme_id: string; since: Date }[]
       >`
-        SELECT * FROM (
+        SELECT x.* FROM (
           SELECT 'FUND_RELEASE' AS entity, r.id, r.scheme_id, r.created_at AS since
             FROM fund_releases r WHERE r.verification_status = 'PENDING'
           UNION ALL SELECT 'EXPENDITURE', e.id, e.scheme_id, e.updated_at
@@ -392,7 +392,8 @@ export class AlertEngineService implements OnModuleInit, OnModuleDestroy {
     if (opts.trigger !== 'EVENT') await this.escalate(tx, now, summary);
 
     const ruleIds = [...new Set([...applicable.values()].map((r) => r.id))];
-    if (ruleIds.length)
+    // A scheme-scoped (event) run has not evaluated the rule for other schemes.
+    if (ruleIds.length && !opts.schemeId)
       await tx.alertRule.updateMany({
         where: { id: { in: ruleIds } },
         data: { lastEvaluatedAt: now },
