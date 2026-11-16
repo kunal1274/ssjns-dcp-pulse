@@ -1,0 +1,43 @@
+# DRAFT Render blueprint for a synthetic-data demonstration. NOT VERIFIED: nothing has been
+# deployed from this file. See docs/evidence/nesfic-d10/08-deployment-status.md for the open points
+# (database roles, migration/seed job, plan costs) before using it.
+databases:
+  - name: dcp-pulse-db
+    databaseName: dcp_pulse
+    postgresMajorVersion: '16'
+    plan: basic-256mb
+
+services:
+  - type: pserv
+    name: dcp-pulse-api
+    runtime: docker
+    dockerfilePath: infra/docker/api.Dockerfile
+    dockerContext: .
+    plan: starter
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: COOKIE_SECURE
+        value: 'true'
+      - key: API_DOCS_ENABLED
+        value: 'false'
+      - key: MAIL_TRANSPORT
+        value: none
+      - key: DEFAULT_TENANT_CODE
+        value: ASSAM-DEMO
+      # Set in the Render dashboard; never commit values.
+      - key: DATABASE_URL # runtime role dcp_app (subject to row-level security)
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+
+  - type: web
+    name: dcp-pulse-web
+    runtime: docker
+    dockerfilePath: infra/docker/web.Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /healthz
+    envVars:
+      - key: API_UPSTREAM
+        value: dcp-pulse-api:3000

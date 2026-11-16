@@ -12,7 +12,9 @@ COPY apps/web apps/web
 RUN pnpm --filter @dcp/shared build && pnpm --filter @dcp/web build
 
 FROM nginx:1.27-alpine AS runtime
-COPY infra/docker/nginx.conf /etc/nginx/conf.d/default.conf
+# The image entrypoint renders templates with envsubst; only defined environment variables are replaced.
+ENV API_UPSTREAM=api:3000
+COPY infra/docker/nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --retries=5 CMD wget -qO- http://127.0.0.1:8080/healthz || exit 1
