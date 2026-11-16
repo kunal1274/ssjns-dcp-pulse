@@ -29,6 +29,7 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
   p('alert.view', 'View alerts'),
   p('alert.assign', 'Assign alerts and corrective actions'),
   p('alert.resolve', 'Resolve alerts'),
+  p('alert.rule.manage', 'Configure alert rules and thresholds'),
   p('report.view', 'View dashboards and reports'),
   p('report.export', 'Export reports'),
   p('audit.view', 'View business audit events'),
@@ -66,6 +67,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
       'budget.request.review',
       'budget.allocate',
       'budget.revise',
+      'alert.rule.manage',
       'report.view',
     ],
   },
@@ -124,6 +126,12 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
   {
     code: 'SYSTEM_ADMIN',
     name: 'System Administrator',
-    permissions: ['role.manage', 'user.manage', 'integration.manage', 'audit.view'],
+    permissions: [
+      'role.manage',
+      'user.manage',
+      'integration.manage',
+      'audit.view',
+      'alert.rule.manage',
+    ],
   },
 ];

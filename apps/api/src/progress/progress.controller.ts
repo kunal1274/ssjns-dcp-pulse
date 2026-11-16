@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiHeader, ApiTags } from '@nestjs/swagger';
 import { CurrentAuth, type AuthContext, type AuthedRequest } from '../auth/auth-context';
+import { AlertEngineService } from '../alerts/alert-engine.service';
 import { RequirePermissions } from '../authz/permissions.guard';
 import {
   CreateProgressDto,
@@ -36,6 +37,7 @@ const uuid = new ParseUUIDPipe();
 export class ProgressController {
   constructor(
     private readonly progress: ProgressService,
+    private readonly engine: AlertEngineService,
     private readonly queueService: QueueService,
   ) {}
 
@@ -110,7 +112,7 @@ export class ProgressController {
     @Headers('idempotency-key') key: string | undefined,
     @Req() req: AuthedRequest,
   ) {
-    return this.progress.verify(a, id, dto.version, key, rid(req));
+    return this.engine.after(a.tenantId, this.progress.verify(a, id, dto.version, key, rid(req)));
   }
 
   @Post('progress-submissions/:id/return')
@@ -135,7 +137,7 @@ export class ProgressController {
     @Headers('idempotency-key') key: string | undefined,
     @Req() req: AuthedRequest,
   ) {
-    return this.progress.correct(a, id, key, rid(req));
+    return this.engine.after(a.tenantId, this.progress.correct(a, id, key, rid(req)));
   }
 
   @Get('schemes/:id/progress')

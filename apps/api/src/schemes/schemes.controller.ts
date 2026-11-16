@@ -6,6 +6,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   Req,
 } from '@nestjs/common';
@@ -13,7 +14,9 @@ import { ApiTags } from '@nestjs/swagger';
 import { CurrentAuth, type AuthContext, type AuthedRequest } from '../auth/auth-context';
 import { RequirePermissions } from '../authz/permissions.guard';
 import {
+  CreateMilestoneDto,
   CreateSchemeDto,
+  SchemeLocationDto,
   SchemeDecisionDto,
   SchemeQuery,
   SchemeTransitionDto,
@@ -78,6 +81,28 @@ export class SchemesController {
     @Req() req: AuthedRequest,
   ) {
     return this.schemes.decide(a, id, dto, rid(req));
+  }
+
+  @Post(':id/milestones')
+  @RequirePermissions('scheme.edit')
+  addMilestone(
+    @CurrentAuth() a: AuthContext,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateMilestoneDto,
+    @Req() req: AuthedRequest,
+  ) {
+    return this.schemes.addMilestone(a, id, dto, rid(req));
+  }
+
+  @Put(':id/location')
+  @RequirePermissions('scheme.edit')
+  setLocation(
+    @CurrentAuth() a: AuthContext,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SchemeLocationDto,
+    @Req() req: AuthedRequest,
+  ) {
+    return this.schemes.setLocation(a, id, dto, rid(req));
   }
 
   @Post(':id/transition')

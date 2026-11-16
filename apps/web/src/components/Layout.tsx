@@ -14,6 +14,29 @@ export function Layout() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 p-3">
           <span className="mr-4 font-semibold">DCP Pulse</span>
           <nav aria-label="Main" className="flex flex-wrap gap-1">
+            {can('report.view') && (
+              <NavLink to="/dashboards" className={link}>
+                Dashboards
+              </NavLink>
+            )}
+            {can('scheme.view') && (
+              <NavLink to="/map" className={link}>
+                Map
+              </NavLink>
+            )}
+            {can('alert.view') && (
+              <NavLink to="/alerts" end className={link}>
+                Alerts
+              </NavLink>
+            )}
+            {!can('alert.view') && can('alert.rule.manage') && (
+              <NavLink to="/alerts/rules" className={link}>
+                Alert rules
+              </NavLink>
+            )}
+            <NavLink to="/corrective-actions" className={link}>
+              Actions
+            </NavLink>
             {can('scheme.view') && (
               <NavLink to="/schemes" className={link}>
                 Schemes
@@ -37,6 +60,16 @@ export function Layout() {
             {can('expenditure.verify', 'progress.verify') && (
               <NavLink to="/verification" className={link}>
                 Verification queue
+              </NavLink>
+            )}
+            {can('report.view') && (
+              <NavLink to="/reports" className={link}>
+                Reports
+              </NavLink>
+            )}
+            {can('integration.manage') && (
+              <NavLink to="/imports" className={link}>
+                Imports
               </NavLink>
             )}
             {can('user.manage') && (

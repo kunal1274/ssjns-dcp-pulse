@@ -14,7 +14,9 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:drift-check": "tsx scripts/check-migration-drift.ts",
     "db:seed": "tsx prisma/seed/seed.ts",
-    "db:reset": "prisma migrate reset --force --skip-seed"
+    "db:reset": "prisma migrate reset --force --skip-seed",
+    "db:demo-reset": "tsx scripts/demo-reset.ts",
+    "perf": "tsx scripts/perf-measure.ts"
   },
   "dependencies": {
     "@dcp/shared": "workspace:*",
@@ -29,6 +31,7 @@
     "class-transformer": "0.5.1",
     "class-validator": "0.14.4",
     "cookie-parser": "1.4.7",
+    "exceljs": "4.4.0",
     "nestjs-pino": "4.6.1",
     "pg": "8.23.1",
     "pino": "9.14.0",

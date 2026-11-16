@@ -5,8 +5,11 @@ import { AuthorizationService, forbidden, notFound } from '../authz/authorizatio
 import { audit, badRequest, conflict, versionConflict } from '../common/http';
 import { fmt, money } from '../common/money';
 import { PrismaService } from '../prisma/prisma.service';
+import { coordinateIssue } from '../alerts/gis.service';
 import { schemeAllocatedTotal } from './totals';
 import type {
+  CreateMilestoneDto,
+  SchemeLocationDto,
   CreateSchemeDto,
   SchemeDecisionDto,
   SchemeQuery,
@@ -233,6 +236,100 @@ export class SchemesService {
         after: out,
       });
       return out;
+    });
+  }
+
+  /** Adds a weighted milestone. Allowed until the first verified progress report, so completion stays consistent. */
+  addMilestone(auth: AuthContext, id: string, dto: CreateMilestoneDto, requestId?: string) {
+    return this.prisma.withTenant(auth.tenantId, async (tx) => {
+      const s = await this.load(tx, auth, id, 'scheme.edit');
+      if (!['DRAFT', 'RETURNED', 'SUBMITTED', 'APPROVED', 'ACTIVE'].includes(s.status))
+        throw conflict('INVALID_STATE', `Milestones cannot be added to a ${s.status} scheme.`);
+      const verified = await tx.progressSubmission.count({
+        where: { schemeId: id, status: 'VERIFIED' },
+      });
+      if (verified)
+        throw conflict(
+          'PROGRESS_ALREADY_VERIFIED',
+          'Milestones are fixed once progress has been verified.',
+        );
+      const weight = money(dto.weight);
+      const qty = money(dto.targetQuantity);
+      if (weight.lte(0) || weight.gt(100))
+        throw badRequest('INVALID_WEIGHT', 'Weight must be greater than 0 and at most 100.');
+      if (qty.lte(0))
+        throw badRequest('INVALID_QUANTITY', 'Target quantity must be greater than zero.');
+      const existing = await tx.schemeMilestone.findMany({
+        where: { schemeId: id },
+        select: { weight: true },
+      });
+      const total = existing.reduce((a, m) => a.add(m.weight), weight);
+      if (total.gt(100))
+        throw conflict(
+          'WEIGHT_EXCEEDED',
+          `Milestone weights would total ${total.toFixed(2)}; the maximum is 100.`,
+        );
+      const m = await tx.schemeMilestone.create({
+        data: {
+          tenantId: auth.tenantId,
+          schemeId: id,
+          name: dto.name,
+          targetDate: new Date(dto.targetDate),
+          targetQuantity: qty,
+          unit: dto.unit,
+          weight,
+          createdBy: auth.userId,
+        },
+      });
+      const out = {
+        ...m,
+        targetQuantity: m.targetQuantity.toFixed(3),
+        weight: m.weight.toFixed(2),
+      };
+      await audit(tx, auth, requestId, {
+        action: 'MILESTONE_ADDED',
+        entityType: 'scheme',
+        entityId: id,
+        after: out,
+      });
+      return out;
+    });
+  }
+
+  /** Sets the scheme's single synthetic point location (WGS84), validated against the demo state bounds. */
+  setLocation(auth: AuthContext, id: string, dto: SchemeLocationDto, requestId?: string) {
+    return this.prisma.withTenant(auth.tenantId, async (tx) => {
+      const s = await this.load(tx, auth, id, 'scheme.edit');
+      if (['CLOSED', 'CANCELLED'].includes(s.status))
+        throw conflict('INVALID_STATE', `The location of a ${s.status} scheme cannot change.`);
+      const issue = coordinateIssue(dto.longitude, dto.latitude);
+      if (issue)
+        throw badRequest(
+          'INVALID_COORDINATES',
+          `Coordinates rejected (${issue}); use a point inside the synthetic Assam bounds.`,
+        );
+      const before = await tx.$queryRaw<{ lon: number; lat: number }[]>`
+        SELECT ST_X(geometry::geometry) AS lon, ST_Y(geometry::geometry) AS lat FROM scheme_locations WHERE scheme_id = ${id}::uuid`;
+      await tx.$executeRaw`DELETE FROM scheme_locations WHERE scheme_id = ${id}::uuid`;
+      await tx.$executeRaw`
+        INSERT INTO scheme_locations (tenant_id, scheme_id, geometry, location_accuracy, source, created_by)
+        VALUES (${auth.tenantId}::uuid, ${id}::uuid,
+                ST_SetSRID(ST_MakePoint(${dto.longitude}, ${dto.latitude}), 4326)::geography,
+                ${dto.locationAccuracy}, 'manual-synthetic', ${auth.userId}::uuid)`;
+      const after = {
+        longitude: dto.longitude,
+        latitude: dto.latitude,
+        locationAccuracy: dto.locationAccuracy,
+        crs: 'EPSG:4326',
+      };
+      await audit(tx, auth, requestId, {
+        action: 'SCHEME_LOCATION_SET',
+        entityType: 'scheme',
+        entityId: id,
+        before: before[0] ?? null,
+        after,
+      });
+      return after;
     });
   }
 

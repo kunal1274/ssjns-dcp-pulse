@@ -190,3 +190,9 @@ export interface QueueItem {
   correctionReason?: string | null;
   version: number;
 }
+
+export interface Period {
+  id: string;
+  code: string;
+  financialYearId: string;
+}

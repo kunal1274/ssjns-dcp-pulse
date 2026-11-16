@@ -187,6 +187,10 @@ enum CorrectiveActionStatus {
   IN_PROGRESS
   DONE
   CANCELLED
+  ASSIGNED
+  PENDING_VERIFICATION
+  CLOSED
+  REOPENED
 
   @@map("corrective_action_status")
 }
@@ -246,10 +250,15 @@ model Tenant {
   approvalDecisions      ApprovalDecision[]
   alertRules             AlertRule[]
   alerts                 Alert[]
+  alertEvents            AlertEvent[]
   correctiveActions      CorrectiveAction[]
+  correctiveActionEvents CorrectiveActionEvent[]
   auditEvents            AuditEvent[]
   importBatches          ImportBatch[]
   externalRecordMappings ExternalRecordMapping[]
+  integrationSources     IntegrationSource[]
+  importErrors           ImportError[]
+  reportExecutions       ReportExecution[]
   userSessions           UserSession[]
   passwordResetTokens    PasswordResetToken[]
   authenticationEvents   AuthenticationEvent[]
@@ -597,6 +606,7 @@ model Scheme {
   progressSubmissions ProgressSubmission[]
   evidenceFiles       EvidenceFile[]
   alerts              Alert[]
+  correctiveActions   CorrectiveAction[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, schemeCode])
@@ -1020,6 +1030,10 @@ model AlertRule {
   dedupKeyTemplate    String        @map("dedup_key_template") @db.VarChar(200)
   /// True for clearly labelled demo thresholds (§10).
   isIllustrative      Boolean       @default(true) @map("is_illustrative")
+  enabled             Boolean       @default(true)
+  evaluationFrequency String        @default("DAILY") @map("evaluation_frequency") @db.VarChar(30)
+  description         String?
+  lastEvaluatedAt     DateTime?     @map("last_evaluated_at") @db.Timestamptz(6)
   status              RecordStatus  @default(ACTIVE)
   createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -1035,29 +1049,39 @@ model AlertRule {
 }
 
 model Alert {
-  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String        @map("tenant_id") @db.Uuid
-  schemeId    String?       @map("scheme_id") @db.Uuid
-  ruleId      String?       @map("rule_id") @db.Uuid
-  ruleCode    String        @map("rule_code") @db.VarChar(50)
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String        @map("tenant_id") @db.Uuid
+  schemeId         String?       @map("scheme_id") @db.Uuid
+  ruleId           String?       @map("rule_id") @db.Uuid
+  ruleCode         String        @map("rule_code") @db.VarChar(50)
   /// Deterministic key so repeated detection runs never create duplicates.
-  dedupKey    String        @map("dedup_key") @db.VarChar(300)
-  severity    AlertSeverity
-  status      AlertStatus   @default(OPEN)
-  assigneeId  String?       @map("assignee_id") @db.Uuid
-  dueAt       DateTime?     @map("due_at") @db.Timestamptz(6)
-  detectedAt  DateTime      @map("detected_at") @db.Timestamptz(6)
-  contextJson Json          @default("{}") @map("context_json")
-  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdBy   String?       @map("created_by") @db.Uuid
-  version     Int           @default(1)
+  dedupKey         String        @map("dedup_key") @db.VarChar(300)
+  severity         AlertSeverity
+  status           AlertStatus   @default(OPEN)
+  assigneeId       String?       @map("assignee_id") @db.Uuid
+  dueAt            DateTime?     @map("due_at") @db.Timestamptz(6)
+  detectedAt       DateTime      @map("detected_at") @db.Timestamptz(6)
+  contextJson      Json          @default("{}") @map("context_json")
+  /// True when the rule flags a condition for review rather than a proven violation.
+  reviewIndicator  Boolean       @default(true) @map("review_indicator")
+  escalationLevel  Int           @default(0) @map("escalation_level")
+  acknowledgedAt   DateTime?     @map("acknowledged_at") @db.Timestamptz(6)
+  acknowledgedBy   String?       @map("acknowledged_by") @db.Uuid
+  resolvedAt       DateTime?     @map("resolved_at") @db.Timestamptz(6)
+  resolvedBy       String?       @map("resolved_by") @db.Uuid
+  resolutionReason String?       @map("resolution_reason")
+  lastEvaluatedAt  DateTime?     @map("last_evaluated_at") @db.Timestamptz(6)
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy        String?       @map("created_by") @db.Uuid
+  version          Int           @default(1)
 
   tenant            Tenant             @relation(fields: [tenantId], references: [id])
   scheme            Scheme?            @relation(fields: [tenantId, schemeId], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
   rule              AlertRule?         @relation(fields: [tenantId, ruleId], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
   assignee          User?              @relation("AlertAssignee", fields: [tenantId, assigneeId], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
   correctiveActions CorrectiveAction[]
+  events            AlertEvent[]
 
   @@unique([tenantId, id])
   @@unique([tenantId, dedupKey])
@@ -1075,18 +1099,69 @@ model CorrectiveAction {
   dueAt             DateTime?              @map("due_at") @db.Timestamptz(6)
   status            CorrectiveActionStatus @default(OPEN)
   closureEvidenceId String?                @map("closure_evidence_id") @db.Uuid
+  schemeId          String?                @map("scheme_id") @db.Uuid
+  priority          String                 @default("MEDIUM") @db.VarChar(10)
+  evidenceNote      String?                @map("evidence_note")
+  submittedAt       DateTime?              @map("submitted_at") @db.Timestamptz(6)
+  verifiedBy        String?                @map("verified_by") @db.Uuid
+  verifiedAt        DateTime?              @map("verified_at") @db.Timestamptz(6)
+  closureReason     String?                @map("closure_reason")
   createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdBy         String?                @map("created_by") @db.Uuid
   version           Int                    @default(1)
 
-  tenant          Tenant        @relation(fields: [tenantId], references: [id])
-  alert           Alert         @relation(fields: [tenantId, alertId], references: [tenantId, id])
-  owner           User          @relation(fields: [tenantId, ownerId], references: [tenantId, id])
-  closureEvidence EvidenceFile? @relation(fields: [tenantId, closureEvidenceId], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
+  tenant          Tenant                  @relation(fields: [tenantId], references: [id])
+  alert           Alert                   @relation(fields: [tenantId, alertId], references: [tenantId, id])
+  owner           User                    @relation(fields: [tenantId, ownerId], references: [tenantId, id])
+  closureEvidence EvidenceFile?           @relation(fields: [tenantId, closureEvidenceId], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
+  scheme          Scheme?                 @relation(fields: [tenantId, schemeId], references: [tenantId, id], onDelete: Restrict, onUpdate: NoAction)
+  events          CorrectiveActionEvent[]
 
+  @@unique([tenantId, id])
   @@index([tenantId, alertId])
+  @@index([tenantId, ownerId, status])
   @@map("corrective_actions")
+}
+
+/// Append-only lifecycle history of an alert (detection, re-detection, acknowledgement, assignment, escalation, resolution, reopening).
+model AlertEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  alertId    String   @map("alert_id") @db.Uuid
+  eventType  String   @map("event_type") @db.VarChar(30)
+  fromStatus String?  @map("from_status") @db.VarChar(30)
+  toStatus   String?  @map("to_status") @db.VarChar(30)
+  /// Null for system (evaluator) events.
+  actorId    String?  @map("actor_id") @db.Uuid
+  note       String?
+  detailJson Json     @default("{}") @map("detail_json")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  alert  Alert  @relation(fields: [tenantId, alertId], references: [tenantId, id])
+
+  @@index([tenantId, alertId, createdAt])
+  @@map("alert_events")
+}
+
+/// Append-only lifecycle history of a corrective action.
+model CorrectiveActionEvent {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String   @map("tenant_id") @db.Uuid
+  correctiveActionId String   @map("corrective_action_id") @db.Uuid
+  eventType          String   @map("event_type") @db.VarChar(30)
+  fromStatus         String?  @map("from_status") @db.VarChar(30)
+  toStatus           String?  @map("to_status") @db.VarChar(30)
+  actorId            String?  @map("actor_id") @db.Uuid
+  note               String?
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant           Tenant           @relation(fields: [tenantId], references: [id])
+  correctiveAction CorrectiveAction @relation(fields: [tenantId, correctiveActionId], references: [tenantId, id])
+
+  @@index([tenantId, correctiveActionId, createdAt])
+  @@map("corrective_action_events")
 }
 
 // ---------------------------------------------------------------------------
@@ -1115,23 +1190,103 @@ model AuditEvent {
   @@map("audit_events")
 }
 
+/// Configured import source. Only synthetic demonstration adapters exist; no live government API is connected.
+model IntegrationSource {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  code        String   @db.VarChar(50)
+  name        String   @db.VarChar(200)
+  adapter     String   @db.VarChar(50)
+  entityType  String   @map("entity_type") @db.VarChar(50)
+  isSynthetic Boolean  @default(true) @map("is_synthetic")
+  enabled     Boolean  @default(true)
+  configJson  Json     @default("{}") @map("config_json")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy   String?  @map("created_by") @db.Uuid
+  version     Int      @default(1)
+
+  tenant  Tenant        @relation(fields: [tenantId], references: [id])
+  batches ImportBatch[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, code])
+  @@map("integration_sources")
+}
+
 model ImportBatch {
-  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId     String            @map("tenant_id") @db.Uuid
-  source       String            @db.VarChar(50)
-  filename     String            @db.VarChar(300)
-  status       ImportBatchStatus @default(RECEIVED)
-  receivedAt   DateTime          @default(now()) @map("received_at") @db.Timestamptz(6)
-  errorSummary Json?             @map("error_summary")
-  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdBy    String?           @map("created_by") @db.Uuid
-  version      Int               @default(1)
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String            @map("tenant_id") @db.Uuid
+  source               String            @db.VarChar(50)
+  sourceId             String?           @map("source_id") @db.Uuid
+  filename             String            @db.VarChar(300)
+  fileSha256           String?           @map("file_sha256") @db.Char(64)
+  status               ImportBatchStatus @default(RECEIVED)
+  receivedAt           DateTime          @default(now()) @map("received_at") @db.Timestamptz(6)
+  errorSummary         Json?             @map("error_summary")
+  rowCount             Int               @default(0) @map("row_count")
+  validCount           Int               @default(0) @map("valid_count")
+  errorCount           Int               @default(0) @map("error_count")
+  duplicateCount       Int               @default(0) @map("duplicate_count")
+  alreadyImportedCount Int               @default(0) @map("already_imported_count")
+  committedCount       Int               @default(0) @map("committed_count")
+  /// Normalised valid rows from preview; commit uses these, never a re-uploaded file.
+  rowsJson             Json?             @map("rows_json")
+  reconciliationJson   Json?             @map("reconciliation_json")
+  committedAt          DateTime?         @map("committed_at") @db.Timestamptz(6)
+  committedBy          String?           @map("committed_by") @db.Uuid
+  createdAt            DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdBy            String?           @map("created_by") @db.Uuid
+  version              Int               @default(1)
+
+  tenant            Tenant             @relation(fields: [tenantId], references: [id])
+  integrationSource IntegrationSource? @relation(fields: [tenantId, sourceId], references: [tenantId, id])
+  errors            ImportError[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@index([tenantId, sourceId, fileSha256])
+  @@map("import_batches")
+}
+
+/// Append-only per-row import validation errors.
+model ImportError {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  batchId   String   @map("batch_id") @db.Uuid
+  rowNumber Int      @map("row_number")
+  field     String?  @db.VarChar(100)
+  code      String   @db.VarChar(50)
+  message   String   @db.VarChar(500)
+  rawJson   Json?    @map("raw_json")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant      @relation(fields: [tenantId], references: [id])
+  batch  ImportBatch @relation(fields: [tenantId, batchId], references: [tenantId, id])
+
+  @@index([tenantId, batchId, rowNumber])
+  @@map("import_errors")
+}
+
+/// Append-only history of MIS exports (who exported what, with which filters).
+model ReportExecution {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  reportCode   String   @map("report_code") @db.VarChar(60)
+  format       String   @db.VarChar(10)
+  paramsJson   Json     @default("{}") @map("params_json")
+  rowCount     Int      @map("row_count")
+  scopeSummary String   @map("scope_summary") @db.VarChar(500)
+  durationMs   Int      @map("duration_ms")
+  generatedBy  String   @map("generated_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
-  @@index([tenantId, status])
-  @@map("import_batches")
+  @@index([tenantId, createdAt])
+  @@map("report_executions")
 }
 
 model ExternalRecordMapping {
