@@ -1,5 +1,6 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -8,6 +9,9 @@ import type { FinancialYear, Jurisdiction } from '../lib/types';
 import { useApi } from '../lib/useApi';
 import { LoadState, pct } from './DashboardPages';
 import { SeverityPill } from './AlertPages';
+
+// MapLibre 6 ships its worker as a separate module; Vite must emit it as a same-origin asset.
+maplibregl.setWorkerUrl(workerUrl);
 
 interface Props {
   id: string;

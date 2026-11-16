@@ -104,6 +104,13 @@ test('GIS map shows only in-scope synthetic points and links to scheme detail', 
   browser,
 }) => {
   const monitor = await signIn(browser, 'state.monitor@example.test');
+  // The map worker is a same-origin module asset; a CSP or MIME regression surfaces here.
+  const mapErrors: string[] = [];
+  monitor.on('pageerror', (e) => mapErrors.push(String(e)));
+  monitor.on('console', (m) => {
+    if (m.type() === 'error' && /worker|content security policy/i.test(m.text()))
+      mapErrors.push(m.text());
+  });
   await monitor.getByRole('link', { name: 'Map' }).click();
   await expect(monitor.getByTestId('gis-notice')).toContainText('synthetic');
   const all = await (await monitor.request.get('/api/v1/gis/schemes')).json();
@@ -111,6 +118,8 @@ test('GIS map shows only in-scope synthetic points and links to scheme detail', 
     all.features.length + all.unmapped.length,
   );
   await expect(monitor.locator('.maplibregl-canvas')).toBeVisible();
+  await monitor.waitForTimeout(1500);
+  expect(mapErrors).toEqual([]);
   await monitor.getByRole('link', { name: 'DEMO-005' }).click();
   await expect(monitor).toHaveURL(/\/dashboards\/scheme\/|\/schemes\//);
 
