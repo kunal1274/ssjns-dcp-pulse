@@ -392,8 +392,20 @@ describe('F12 MIS reports, exports and synthetic import (e2e, real database)', (
       const gis = (await get(planner, `/gis/schemes/${ids['DEMO-001']}`).expect(200)).body;
       expect(gis.alerts).toEqual([]);
       expect(gis.topAlertSeverity).toBeNull();
+      expect(s360.metrics.openAlerts).toBeNull();
+      expect(gis.openAlerts).toBeNull();
       const mon = (await get(monitor, `/dashboards/scheme/${ids['DEMO-001']}`).expect(200)).body;
       expect(mon.alertsVisible).toBe(true);
+      expect(mon.metrics.openAlerts).toBeGreaterThan(0);
+    });
+
+    it('hides open-alert counts on dashboards and reports from users without alert.view', async () => {
+      const state = (await get(planner, '/dashboards/state').expect(200)).body;
+      expect(state.totals.openAlerts).toBeNull();
+      const list = (await get(planner, '/dashboards/schemes?pageSize=100').expect(200)).body;
+      expect(list.items.every((s: { openAlerts: unknown }) => s.openAlerts === null)).toBe(true);
+      const monState = (await get(monitor, '/dashboards/state').expect(200)).body;
+      expect(typeof monState.totals.openAlerts).toBe('number');
     });
   });
 });

@@ -125,6 +125,7 @@ export class DashboardsService {
   private async filter(
     tx: Prisma.TransactionClient,
     scope: ScopeFilter,
+    alertScope: ScopeFilter | null,
     q: DashboardQuery,
     subtreeOf?: string,
   ): Promise<{ f: MetricsFilter; period: { id: string; code: string; endDate: Date } | null }> {
@@ -132,6 +133,7 @@ export class DashboardsService {
     return {
       f: {
         scope,
+        alertScope,
         subtreeOf: q.coDistrictId ?? q.districtId ?? subtreeOf,
         financialYearId: q.financialYearId,
         category: q.category,
@@ -221,6 +223,7 @@ export class DashboardsService {
   private async dashboard(
     tx: Prisma.TransactionClient,
     scope: ScopeFilter,
+    alertScope: ScopeFilter | null,
     q: DashboardQuery,
     node: {
       id: string;
@@ -230,7 +233,7 @@ export class DashboardsService {
       parentId: string | null;
     },
   ) {
-    const { f, period } = await this.filter(tx, scope, q, node.id);
+    const { f, period } = await this.filter(tx, scope, alertScope, q, node.id);
     const [totals, comparison, statuses, delayed] = await Promise.all([
       this.totals(tx, f),
       this.children(tx, f, node.id),
@@ -271,7 +274,8 @@ export class DashboardsService {
       if (!root) throw notFound('Jurisdiction');
       for (const id of [q.districtId, q.coDistrictId])
         if (id && !scope.all && !scope.jurisdictionIds.has(id)) throw notFound('Jurisdiction');
-      return this.dashboard(tx, scope, q, root);
+      const alertScope = await this.authz.scopeFor(tx, auth.userId, 'alert.view');
+      return this.dashboard(tx, scope, alertScope, q, root);
     });
   }
 
@@ -279,9 +283,11 @@ export class DashboardsService {
     return this.run(auth, async (tx) => {
       const scope = await this.authz.requireScope(tx, auth.userId, 'report.view');
       const node = await this.node(tx, scope, id);
+      const alertScope = await this.authz.scopeFor(tx, auth.userId, 'alert.view');
       return this.dashboard(
         tx,
         scope,
+        alertScope,
         { ...q, districtId: undefined, coDistrictId: undefined },
         node,
       );
@@ -292,7 +298,8 @@ export class DashboardsService {
     return this.run(auth, async (tx) => {
       const scope = await this.authz.requireScope(tx, auth.userId, 'report.view');
       if (q.jurisdictionId) await this.node(tx, scope, q.jurisdictionId);
-      const { f } = await this.filter(tx, scope, q, q.jurisdictionId);
+      const alertScope = await this.authz.scopeFor(tx, auth.userId, 'alert.view');
+      const { f } = await this.filter(tx, scope, alertScope, q, q.jurisdictionId);
       return this.schemeList(tx, f, {
         delayedOnly: q.delayedOnly,
         page: q.page,
@@ -315,10 +322,13 @@ export class DashboardsService {
       });
       if (!s || !this.authz.schemeInScope(scope, s)) throw notFound('Scheme');
       const { cutoff, period } = await this.cutoff(tx, q.periodId);
-      const [row] = await tx.$queryRaw<SchemeRow[]>(
-        withMetrics({ scope, schemeId: id, cutoff }, Prisma.sql`SELECT ${SCHEME_COLUMNS} FROM m`),
-      );
       const alertScope = await this.authz.scopeFor(tx, auth.userId, 'alert.view');
+      const [row] = await tx.$queryRaw<SchemeRow[]>(
+        withMetrics(
+          { scope, alertScope, schemeId: id, cutoff },
+          Prisma.sql`SELECT ${SCHEME_COLUMNS} FROM m`,
+        ),
+      );
       const canSeeAlerts = !!alertScope && this.authz.schemeInScope(alertScope, s);
       const [alerts, decisions, timeline] = await Promise.all([
         canSeeAlerts
@@ -445,7 +455,7 @@ export class DashboardsService {
   reportingCompleteness(auth: AuthContext, q: DashboardQuery) {
     return this.run(auth, async (tx) => {
       const scope = await this.authz.requireScope(tx, auth.userId, 'report.view');
-      const { f } = await this.filter(tx, scope, q);
+      const { f } = await this.filter(tx, scope, null, q);
       return this.completeness(tx, f, q.periodId);
     });
   }

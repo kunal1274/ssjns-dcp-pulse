@@ -186,7 +186,7 @@ export class AlertEngineService implements OnModuleInit, OnModuleDestroy {
 
     const facts = await tx.$queryRaw<Facts[]>(
       withMetrics(
-        { scope: ALL, schemeId: opts.schemeId },
+        { scope: ALL, alertScope: ALL, schemeId: opts.schemeId },
         Prisma.sql`SELECT x.*, sc.agency_id::text AS agency_id, j.ancestry::text[] AS ancestry, sc.start_date
           FROM (SELECT ${SCHEME_COLUMNS}, m.last_verified_at FROM m) x
           JOIN schemes sc ON sc.id = x.id JOIN jurisdictions j ON j.id = sc.jurisdiction_id`,

@@ -219,6 +219,7 @@ export class ReportsService {
     }
     const f: MetricsFilter = {
       scope,
+      alertScope: alertScope ?? (await this.authz.scopeFor(tx, auth.userId, 'alert.view')),
       subtreeOf: q.jurisdictionId,
       financialYearId: q.financialYearId,
       category: q.category,

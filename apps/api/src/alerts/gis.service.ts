@@ -57,10 +57,12 @@ export class GisService {
   private query(
     scope: Awaited<ReturnType<AuthorizationService['requireScope']>>,
     q: GisQuery & { schemeId?: string },
+    alertScope: ScopeFilter | null,
   ) {
     return withMetrics(
       {
         scope,
+        alertScope,
         subtreeOf: q.jurisdictionId,
         financialYearId: q.financialYearId,
         category: q.category,
@@ -124,8 +126,8 @@ export class GisService {
     return this.prisma
       .withTenant(auth.tenantId, async (tx) => {
         const scope = await this.authz.requireScope(tx, auth.userId, 'scheme.view');
-        const rows = await tx.$queryRaw<GisRow[]>(this.query(scope, q));
         const alertScope = await this.authz.scopeFor(tx, auth.userId, 'alert.view');
+        const rows = await tx.$queryRaw<GisRow[]>(this.query(scope, q, alertScope));
         const features = [];
         const unmapped = [];
         for (const r of rows) {
@@ -156,9 +158,9 @@ export class GisService {
     return this.prisma
       .withTenant(auth.tenantId, async (tx) => {
         const scope = await this.authz.requireScope(tx, auth.userId, 'scheme.view');
-        const [row] = await tx.$queryRaw<GisRow[]>(this.query(scope, { schemeId: id }));
-        if (!row) throw notFound('Scheme');
         const alertScope = await this.authz.scopeFor(tx, auth.userId, 'alert.view');
+        const [row] = await tx.$queryRaw<GisRow[]>(this.query(scope, { schemeId: id }, alertScope));
+        if (!row) throw notFound('Scheme');
         const showAlerts = this.alertsVisible(alertScope, row);
         const f = this.feature(row, showAlerts);
         const alerts = showAlerts

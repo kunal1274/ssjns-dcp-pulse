@@ -35,7 +35,7 @@ export interface Kpis {
   unspentReleasedFunds: string;
   pendingProgressSubmissions: number;
   pendingFinancialVerification: number;
-  openAlerts: number;
+  openAlerts: number | null;
   delayedSchemes: number;
   delayedMilestones: number;
   schemesRequiringAction: number;
@@ -65,7 +65,7 @@ export interface SchemeMetrics {
   delayed: boolean;
   pendingFinancialVerification: number;
   pendingProgressSubmissions: number;
-  openAlerts: number;
+  openAlerts: number | null;
   lastVerifiedPeriod: string | null;
 }
 interface Dashboard {
@@ -92,6 +92,9 @@ interface Dashboard {
 
 export const pct = (v: string | null | undefined) => (v == null ? 'N/A' : `${v}%`);
 const lakh = (v: string | null) => (v == null ? 0 : Number(v) / 100000);
+
+/** null = the user has no alert-view access covering these schemes. */
+const alertCount = (n: number | null) => (n === null ? 'Restricted' : n);
 
 function Kpi({
   label,
@@ -353,7 +356,7 @@ function KpiGrid({ k }: { k: Kpis }) {
       <Kpi label="Pending finance verification" value={k.pendingFinancialVerification} />
       <Kpi
         label="Open alerts"
-        value={k.openAlerts}
+        value={alertCount(k.openAlerts)}
         hint={`${k.schemesRequiringAction} schemes need attention`}
         testId="kpi-alerts"
       />
@@ -396,7 +399,7 @@ function SchemeTable({ items }: { items: SchemeMetrics[] }) {
           <td className="p-2">{pct(s.financialUtilisationPercent)}</td>
           <td className="p-2">{s.physicalFinancialDifferencePoints ?? 'N/A'}</td>
           <td className="p-2">{s.milestonesDelayed}</td>
-          <td className="p-2">{s.openAlerts}</td>
+          <td className="p-2">{alertCount(s.openAlerts)}</td>
         </tr>
       ))}
     </Table>
@@ -534,7 +537,7 @@ export function DashboardPage() {
                   <td className="p-2">{inr(c.kpis?.verifiedExpenditure ?? '0')}</td>
                   <td className="p-2">{pct(c.kpis?.financialUtilisationPercent)}</td>
                   <td className="p-2">{c.kpis?.delayedSchemes ?? 0}</td>
-                  <td className="p-2">{c.kpis?.openAlerts ?? 0}</td>
+                  <td className="p-2">{c.kpis ? alertCount(c.kpis.openAlerts) : 0}</td>
                 </tr>
               ))}
               {data.directAtThisLevel && (
@@ -546,7 +549,7 @@ export function DashboardPage() {
                   <td className="p-2">{inr(data.directAtThisLevel.verifiedExpenditure)}</td>
                   <td className="p-2">{pct(data.directAtThisLevel.financialUtilisationPercent)}</td>
                   <td className="p-2">{data.directAtThisLevel.delayedSchemes}</td>
-                  <td className="p-2">{data.directAtThisLevel.openAlerts}</td>
+                  <td className="p-2">{alertCount(data.directAtThisLevel.openAlerts)}</td>
                 </tr>
               )}
             </Table>

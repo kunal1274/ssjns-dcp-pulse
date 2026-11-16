@@ -15,6 +15,8 @@ export interface MetricsFilter {
   schemeId?: string;
   /** Cumulative cut-off (reporting period end date); null = everything recorded so far. */
   cutoff?: Date | null;
+  /** Caller's `alert.view` scope: alert counts are null for schemes outside it (null = none). */
+  alertScope: ScopeFilter | null;
 }
 
 const uuids = (s: Set<string>) => Prisma.sql`${[...s]}::uuid[]`;
@@ -23,6 +25,13 @@ export function scopeSql(f: ScopeFilter): Prisma.Sql {
   if (f.all) return Prisma.sql`TRUE`;
   return Prisma.sql`(sc.jurisdiction_id = ANY(${uuids(f.jurisdictionIds)})
     OR sc.agency_id = ANY(${uuids(f.agencyIds)}) OR sc.id = ANY(${uuids(f.schemeIds)}))`;
+}
+
+function alertsVisibleSql(f: ScopeFilter | null): Prisma.Sql {
+  if (!f) return Prisma.sql`FALSE`;
+  if (f.all) return Prisma.sql`TRUE`;
+  return Prisma.sql`(s.jurisdiction_id = ANY(${uuids(f.jurisdictionIds)})
+    OR s.agency_id = ANY(${uuids(f.agencyIds)}) OR s.id = ANY(${uuids(f.schemeIds)}))`;
 }
 
 function where(f: MetricsFilter): Prisma.Sql {
@@ -159,7 +168,7 @@ m AS (
     COALESCE(com.amount, 0::numeric(18, 2)) AS open_commitments,
     COALESCE(rel.pending_n, 0) + COALESCE(exp.pending_n, 0) AS pending_financial,
     COALESCE(pend.n, 0) AS pending_progress,
-    COALESCE(al.n, 0) AS open_alerts,
+    CASE WHEN ${alertsVisibleSql(f.alertScope)} THEN COALESCE(al.n, 0) END AS open_alerts,
     CASE WHEN phys.total_weight > 0 THEN ROUND(phys.achieved * 100 / phys.total_weight, 2) END AS physical,
     CASE WHEN phys.total_weight > 0 THEN ROUND(phys.planned * 100 / phys.total_weight, 2) END AS planned,
     CASE WHEN bud.total_amount > 0 THEN ROUND(COALESCE(exp.verified, 0::numeric(18, 2)) * 100 / bud.total_amount, 2) END AS fin_util,
@@ -193,7 +202,7 @@ export const AGGREGATES = Prisma.sql`
   COALESCE(SUM(m.open_commitments), 0::numeric(18, 2))::text AS open_commitments,
   COALESCE(SUM(m.pending_financial), 0)::int AS pending_financial,
   COALESCE(SUM(m.pending_progress), 0)::int AS pending_progress,
-  COALESCE(SUM(m.open_alerts), 0)::int AS open_alerts,
+  SUM(m.open_alerts)::int AS open_alerts,
   COUNT(*) FILTER (WHERE m.delayed)::int AS delayed_count,
   COUNT(*) FILTER (WHERE m.open_alerts > 0 OR m.delayed)::int AS corrective_count,
   COALESCE(SUM(m.milestones_delayed), 0)::int AS milestones_delayed,
@@ -217,7 +226,7 @@ export interface AggregateRow {
   open_commitments: string;
   pending_financial: number;
   pending_progress: number;
-  open_alerts: number;
+  open_alerts: number | null;
   delayed_count: number;
   corrective_count: number;
   milestones_delayed: number;
@@ -258,7 +267,7 @@ export interface SchemeRow {
   fin_util: string | null;
   pending_financial: number;
   pending_progress: number;
-  open_alerts: number;
+  open_alerts: number | null;
   milestones: number;
   milestones_done: number;
   milestones_delayed: number;
